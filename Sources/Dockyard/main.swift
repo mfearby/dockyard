@@ -1,32 +1,8 @@
 import AppKit
+import DockyardCore
 import WebKit
 
 let barHeight: CGFloat = 40
-
-// MARK: - Config (~/.config/dockyard/config.json)
-
-struct Config: Codable {
-    var order: [String] = []
-}
-
-enum ConfigStore {
-    static let url = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/dockyard/config.json")
-
-    static func load() -> Config {
-        guard let data = try? Data(contentsOf: url),
-              let cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
-        return cfg
-    }
-
-    static func save(_ cfg: Config) {
-        try? FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? enc.encode(cfg) { try? data.write(to: url, options: .atomic) }
-    }
-}
 
 // MARK: - Window classes
 
@@ -46,7 +22,8 @@ final class BarWebView: WKWebView {
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
     private var panel: BarPanel!
     private var webView: BarWebView!
-    private var config = ConfigStore.load()
+    private let store = ConfigStore()
+    private lazy var config = store.load()
     private var iconCache: [String: String] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -80,8 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     private func positionPanel() {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        let f = screen.frame
-        panel.setFrame(NSRect(x: f.minX, y: f.minY, width: f.width, height: barHeight), display: true)
+        panel.setFrame(BarLayout.frame(screen: screen.frame, height: barHeight), display: true)
     }
 
     // MARK: Web content
@@ -140,60 +116,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private func runningApps() -> [NSRunningApplication] {
         let me = Bundle.main.bundleIdentifier
         let apps = NSWorkspace.shared.runningApplications.filter {
-            $0.activationPolicy == .regular && $0.bundleIdentifier != nil
-                && $0.bundleIdentifier != me && !$0.isTerminated
+            AppFilter.shouldShow(bundleId: $0.bundleIdentifier, isRegular: $0.activationPolicy == .regular,
+                                 isTerminated: $0.isTerminated, ownBundleId: me)
         }
-        let order = config.order
-        return apps.enumerated().sorted { a, b in
-            let ia = order.firstIndex(of: a.element.bundleIdentifier!) ?? Int.max
-            let ib = order.firstIndex(of: b.element.bundleIdentifier!) ?? Int.max
-            return ia != ib ? ia < ib : a.offset < b.offset
-        }.map { $0.element }
+        return AppOrdering.sorted(apps, by: config.order) { $0.bundleIdentifier! }
     }
 
     private func pushState() {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let apps: [[String: Any]] = runningApps().map { app in
+        let apps = runningApps().map { app in
             let id = app.bundleIdentifier!
-            return ["bundleId": id,
-                    "name": app.localizedName ?? id,
-                    "icon": iconDataURL(for: app, id: id),
-                    "active": id == front]
+            return AppEntry(bundleId: id, name: app.localizedName ?? id,
+                            icon: iconDataURL(for: app, id: id), active: id == front)
         }
-        send(["type": "state", "apps": apps])
-    }
-
-    private func send(_ message: [String: Any]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: message),
-              let json = String(data: data, encoding: .utf8) else { return }
-        webView.evaluateJavaScript("window.onNative && window.onNative(\(json))", completionHandler: nil)
+        webView.evaluateJavaScript(NativeMessage.stateScript(apps: apps), completionHandler: nil)
     }
 
     // MARK: Messages from the UI
 
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-        switch type {
-        case "ready":
+        guard let msg = UIMessage(body: message.body) else { return }
+        switch msg {
+        case .ready:
             pushState()
-        case "activate":
-            if let id = body["bundleId"] as? String,
-               let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
+        case .activate(let id):
+            if let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
                 if app.isHidden { app.unhide() }
                 app.activate(options: [.activateAllWindows])
             }
-        case "setOrder":
-            if let order = body["order"] as? [String] {
-                // Keep remembered positions of apps that aren't currently running.
-                config.order = order + config.order.filter { !order.contains($0) }
-                ConfigStore.save(config)
-            }
-        case "menu":
+        case .setOrder(let order):
+            config.order = AppOrdering.merged(newOrder: order, into: config.order)
+            try? store.save(config)
+            pushState()
+        case .menu:
             let menu = NSMenu()
             menu.addItem(withTitle: "Quit Dockyard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
             menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
-        default:
-            break
         }
     }
 }

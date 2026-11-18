@@ -1,4 +1,5 @@
-export {};
+import { applyOrder, dragTarget, moveItem, shiftFor } from './reorder.ts';
+
 interface AppInfo { bundleId: string; name: string; icon: string; active: boolean }
 type NativeMsg = { type: 'state'; apps: AppInfo[] };
 
@@ -46,7 +47,6 @@ tasksEl.addEventListener('pointerdown', (e) => {
   const items = Array.from(tasksEl.children) as HTMLElement[];
   const from = items.indexOf(el);
   const step = el.offsetWidth + GAP;
-  const baseLeft = el.offsetLeft;
   const startX = e.clientX;
   let moved = false;
   let to = from;
@@ -57,15 +57,12 @@ tasksEl.addEventListener('pointerdown', (e) => {
     if (!moved && Math.abs(dx) < 5) return;
     moved = dragging = true;
     el.classList.add('dragging');
-    const minDx = -from * step;
-    const maxDx = (items.length - 1 - from) * step;
-    const clamped = Math.max(minDx, Math.min(maxDx, dx));
-    el.style.transform = `translateX(${clamped}px)`;
-    to = Math.max(0, Math.min(items.length - 1, Math.round((baseLeft + clamped) / step)));
+    const target = dragTarget(from, dx, step, items.length);
+    to = target.to;
+    el.style.transform = `translateX(${target.offset}px)`;
     items.forEach((it, j) => {
       if (it === el) return;
-      const shift = from < to && j > from && j <= to ? -step
-                  : from > to && j >= to && j < from ? step : 0;
+      const shift = shiftFor(j, from, to, step);
       it.style.transform = shift ? `translateX(${shift}px)` : '';
     });
   };
@@ -76,13 +73,15 @@ tasksEl.addEventListener('pointerdown', (e) => {
     el.removeEventListener('pointercancel', onUp);
     dragging = false;
     if (moved) {
-      const [a] = apps.splice(from, 1);
-      apps.splice(to, 0, a);
-      send({ type: 'setOrder', order: apps.map((x) => x.bundleId) });
+      apps = moveItem(apps, from, to);
+      const order = apps.map((x) => x.bundleId);
+      // An update that arrived mid-drag was sorted by the old order; re-sort it by the new one.
+      if (pending) { apps = applyOrder(pending, order); pending = null; }
+      send({ type: 'setOrder', order });
     } else {
       send({ type: 'activate', bundleId: el.dataset.id });
+      if (pending) { apps = pending; pending = null; }
     }
-    if (pending) { apps = pending; pending = null; }
     render();
   };
 
