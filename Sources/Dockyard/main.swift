@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import DockyardCore
 import WebKit
 
@@ -17,23 +18,60 @@ final class BarWebView: WKWebView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+// MARK: - Window counting
+
+/// Counts each app's open windows for the "hide apps without windows" preference.
+/// Uses Accessibility when permitted (includes minimised windows); otherwise falls back to on-screen windows.
+struct WindowCounter {
+    let trusted = AXIsProcessTrusted()
+    private let onscreen: [Int32: Int]
+
+    init() {
+        if trusted {
+            onscreen = [:]
+        } else {
+            let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] ?? []
+            onscreen = WindowCounting.onscreenCounts(windowInfo: info)
+        }
+    }
+
+    func count(for app: NSRunningApplication) -> Int {
+        guard trusted else { return onscreen[app.processIdentifier] ?? 0 }
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(element, 0.25)  // don't let a hung app stall the bar
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else {
+            return 1  // can't tell, so keep the app on the bar
+        }
+        return windows.filter { window in
+            var subrole: CFTypeRef?
+            AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subrole)
+            return WindowCounting.isCountable(axSubrole: subrole as? String)
+        }.count
+    }
+}
+
 // MARK: - App delegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler {
     private var panel: BarPanel!
     private var webView: BarWebView!
+    private var settingsWindow: NSWindow?
+    private var settingsWebView: WKWebView?
+    /// The app that was frontmost before Options opened, so focus can go back to it on close.
+    private var previousApp: NSRunningApplication?
+    private var webDir: URL?
     private let store = ConfigStore()
     private lazy var config = store.load()
     private var iconCache: [String: String] = [:]
+    private var lastSent: [AppEntry]?
+    private var windowTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let controller = WKUserContentController()
-        controller.add(self, name: "native")
-        let cfg = WKWebViewConfiguration()
-        cfg.userContentController = controller
-
-        webView = BarWebView(frame: .zero, configuration: cfg)
-        webView.isInspectable = true  // Safari > Develop > [your Mac] > Dockyard
+        webDir = findWebDir()
+        webView = makeWebView(BarWebView.self)
 
         panel = BarPanel(
             contentRect: .zero,
@@ -49,8 +87,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         positionPanel()
         panel.orderFrontRegardless()
 
-        loadWeb()
+        load("index.html", into: webView)
         observe()
+        updateWindowTimer()
     }
 
     // MARK: Layout
@@ -62,21 +101,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     // MARK: Web content
 
-    private func loadWeb() {
+    private func makeWebView<T: WKWebView>(_ type: T.Type) -> T {
+        let controller = WKUserContentController()
+        controller.add(self, name: "native")
+        let cfg = WKWebViewConfiguration()
+        cfg.userContentController = controller
+        let view = T(frame: .zero, configuration: cfg)
+        view.isInspectable = true  // Safari > Develop > [your Mac] > Dockyard
+        return view
+    }
+
+    private func findWebDir() -> URL? {
         let fm = FileManager.default
         var candidates: [String] = []
         if let env = ProcessInfo.processInfo.environment["DOCKYARD_WEB_DIR"] { candidates.append(env) }
         if let res = Bundle.main.resourcePath { candidates.append(res + "/web") }
         candidates.append(fm.currentDirectoryPath + "/web/dist")
+        return candidates.first { fm.fileExists(atPath: $0 + "/index.html") }.map { URL(fileURLWithPath: $0) }
+    }
 
-        for dir in candidates where fm.fileExists(atPath: dir + "/index.html") {
-            let base = URL(fileURLWithPath: dir)
-            webView.loadFileURL(base.appendingPathComponent("index.html"), allowingReadAccessTo: base)
+    private func load(_ page: String, into view: WKWebView) {
+        guard let dir = webDir else {
+            view.loadHTMLString(
+                "<body style='font:13px sans-serif'>web/dist not found. Run: cd web &amp;&amp; npm run build</body>",
+                baseURL: nil)
             return
         }
-        webView.loadHTMLString(
-            "<body style='font:13px sans-serif'>web/dist not found. Run: cd web &amp;&amp; npm run build</body>",
-            baseURL: nil)
+        view.loadFileURL(dir.appendingPathComponent(page), allowingReadAccessTo: dir)
     }
 
     // MARK: Running apps
@@ -85,7 +136,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let nc = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification,
                      NSWorkspace.didTerminateApplicationNotification,
-                     NSWorkspace.didActivateApplicationNotification] {
+                     NSWorkspace.didActivateApplicationNotification,
+                     NSWorkspace.didHideApplicationNotification,
+                     NSWorkspace.didUnhideApplicationNotification] {
             nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 self?.pushState()
             }
@@ -93,6 +146,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in self?.positionPanel() }
+    }
+
+    /// Windows opening and closing don't post workspace notifications, so poll while that preference is on.
+    private func updateWindowTimer() {
+        if config.preferences.hideAppsWithoutWindows {
+            guard windowTimer == nil else { return }
+            windowTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                self?.pushState()
+            }
+        } else {
+            windowTimer?.invalidate()
+            windowTimer = nil
+        }
     }
 
     private func iconDataURL(for app: NSRunningApplication, id: String) -> String {
@@ -115,21 +181,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     private func runningApps() -> [NSRunningApplication] {
         let me = Bundle.main.bundleIdentifier
-        let apps = NSWorkspace.shared.runningApplications.filter {
-            AppFilter.shouldShow(bundleId: $0.bundleIdentifier, isRegular: $0.activationPolicy == .regular,
-                                 isTerminated: $0.isTerminated, ownBundleId: me)
+        let prefs = config.preferences
+        let counter = prefs.hideAppsWithoutWindows ? WindowCounter() : nil
+        let apps = NSWorkspace.shared.runningApplications.filter { app in
+            let isRegular = app.activationPolicy == .regular
+            // Only count windows where the answer matters; Accessibility calls aren't free.
+            let windowCount = (counter != nil && isRegular && !app.isHidden) ? counter?.count(for: app) : nil
+            let snapshot = AppSnapshot(bundleId: app.bundleIdentifier, isRegular: isRegular,
+                                       isTerminated: app.isTerminated, isHidden: app.isHidden,
+                                       windowCount: windowCount)
+            return AppFilter.shouldShow(snapshot, preferences: prefs, ownBundleId: me)
         }
         return AppOrdering.sorted(apps, by: config.order) { $0.bundleIdentifier! }
     }
 
-    private func pushState() {
+    /// Sends the app list to the bar. Skips the send when nothing changed, since the window timer calls this every second.
+    private func pushState(force: Bool = false) {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let apps = runningApps().map { app in
             let id = app.bundleIdentifier!
             return AppEntry(bundleId: id, name: app.localizedName ?? id,
                             icon: iconDataURL(for: app, id: id), active: id == front)
         }
+        guard force || apps != lastSent else { return }
+        lastSent = apps
         webView.evaluateJavaScript(NativeMessage.stateScript(apps: apps), completionHandler: nil)
+    }
+
+    // MARK: Options window
+
+    @objc private func openSettings() {
+        if settingsWindow == nil {
+            let view = makeWebView(WKWebView.self)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 420, height: 250),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false)
+            window.title = "Dockyard Options"
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            window.delegate = self
+            window.center()
+            load("settings.html", into: view)
+            settingsWindow = window
+            settingsWebView = view
+        }
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
+        NSApp.activate()
+        settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func sendSettings() {
+        let script = NativeMessage.settingsScript(
+            preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted())
+        settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    /// Refresh when Options comes back to the front, e.g. after granting Accessibility access in System Settings.
+    func windowDidBecomeKey(_ notification: Notification) {
+        sendSettings()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        previousApp?.activate()
+        previousApp = nil
     }
 
     // MARK: Messages from the UI
@@ -138,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         guard let msg = UIMessage(body: message.body) else { return }
         switch msg {
         case .ready:
-            pushState()
+            pushState(force: true)
         case .activate(let id):
             if let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
                 if app.isHidden { app.unhide() }
@@ -147,12 +264,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case .setOrder(let order):
             config.order = AppOrdering.merged(newOrder: order, into: config.order)
             try? store.save(config)
-            pushState()
+            pushState(force: true)
         case .menu:
-            let menu = NSMenu()
-            menu.addItem(withTitle: "Quit Dockyard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
-            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+            showStartMenu()
+        case .getSettings:
+            sendSettings()
+        case .setPreferences(let prefs):
+            config.preferences = prefs
+            try? store.save(config)
+            updateWindowTimer()
+            pushState()
+            sendSettings()
+        case .requestAccessibility:
+            // Adds Dockyard to the Accessibility list and shows the system prompt.
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        case .closeSettings:
+            settingsWindow?.close()
         }
+    }
+
+    private func showStartMenu() {
+        let menu = NSMenu()
+        let options = NSMenuItem(title: "Options…", action: #selector(openSettings), keyEquivalent: "")
+        options.target = self
+        menu.addItem(options)
+        menu.addItem(.separator())
+        let quit = NSMenuItem(title: "Quit Dockyard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        quit.target = NSApp
+        menu.addItem(quit)
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 }
 

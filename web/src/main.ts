@@ -1,16 +1,6 @@
+import { onNative, send, type AppInfo } from './bridge.ts';
 import { applyOrder, dragTarget, moveItem, shiftFor } from './reorder.ts';
 
-interface AppInfo { bundleId: string; name: string; icon: string; active: boolean }
-type NativeMsg = { type: 'state'; apps: AppInfo[] };
-
-declare global {
-    interface Window {
-        onNative: (msg: NativeMsg) => void;
-        webkit?: { messageHandlers: { native: { postMessage(m: unknown): void } } };
-    }
-}
-
-const send = (m: unknown) => window.webkit?.messageHandlers.native.postMessage(m);
 const tasksEl = document.getElementById('tasks')!;
 const GAP = 2;
 
@@ -33,12 +23,12 @@ function render() {
     }));
 }
 
-window.onNative = (msg) => {
+onNative((msg) => {
     if (msg.type !== 'state') return;
     if (dragging) { pending = msg.apps; return; }
     apps = msg.apps;
     render();
-};
+});
 
 // Pointer-based drag to reorder. A press that moves < 5px counts as a click.
 tasksEl.addEventListener('pointerdown', (e) => {
@@ -79,7 +69,7 @@ tasksEl.addEventListener('pointerdown', (e) => {
             if (pending) { apps = applyOrder(pending, order); pending = null; }
             send({ type: 'setOrder', order });
         } else {
-            send({ type: 'activate', bundleId: el.dataset.id });
+            send({ type: 'activate', bundleId: el.dataset.id! });
             if (pending) { apps = pending; pending = null; }
         }
         render();

@@ -17,6 +17,26 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "setOrder", "order": ["a", "b"]]) == .setOrder(["a", "b"]))
     }
 
+    @Test func parsesOptionsWindowMessages() {
+        #expect(UIMessage(body: ["type": "getSettings"]) == .getSettings)
+        #expect(UIMessage(body: ["type": "requestAccessibility"]) == .requestAccessibility)
+        #expect(UIMessage(body: ["type": "closeSettings"]) == .closeSettings)
+    }
+
+    @Test func parsesSetPreferences() {
+        let body: [String: Any] = ["type": "setPreferences",
+                                   "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false]]
+        #expect(UIMessage(body: body) == .setPreferences(Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false)))
+    }
+
+    @Test func parsesBooleansAsWebKitDeliversThem() {
+        // WebKit hands JS booleans over as NSNumber.
+        let body: [String: Any] = ["type": "setPreferences",
+                                   "preferences": ["hideHiddenApps": NSNumber(value: false),
+                                                   "hideAppsWithoutWindows": NSNumber(value: true)]]
+        #expect(UIMessage(body: body) == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true)))
+    }
+
     @Test func rejectsMalformedMessages() {
         #expect(UIMessage(body: "ready") == nil)
         #expect(UIMessage(body: ["kind": "ready"]) == nil)
@@ -24,6 +44,8 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "activate"]) == nil)
         #expect(UIMessage(body: ["type": "activate", "bundleId": 42]) == nil)
         #expect(UIMessage(body: ["type": "setOrder", "order": "a,b"]) == nil)
+        #expect(UIMessage(body: ["type": "setPreferences"]) == nil)
+        #expect(UIMessage(body: ["type": "setPreferences", "preferences": ["hideHiddenApps": true]]) == nil)
     }
 }
 
@@ -46,6 +68,17 @@ struct NativeMessageTests {
         #expect(apps[0]["name"] as? String == "Notes")
         #expect(apps[0]["icon"] as? String == "data:image/png;base64,AA==")
         #expect(apps[0]["active"] as? Bool == true)
+    }
+
+    @Test func settingsHaveTheShapeTheUIExpects() throws {
+        let script = NativeMessage.settingsScript(
+            preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false), accessibilityTrusted: false)
+        let msg = try payload(script)
+        #expect(msg["type"] as? String == "settings")
+        #expect(msg["accessibilityTrusted"] as? Bool == false)
+        let prefs = try #require(msg["preferences"] as? [String: Any])
+        #expect(prefs["hideHiddenApps"] as? Bool == true)
+        #expect(prefs["hideAppsWithoutWindows"] as? Bool == false)
     }
 
     @Test func namesWithQuotesAndSlashesStaySafe() throws {

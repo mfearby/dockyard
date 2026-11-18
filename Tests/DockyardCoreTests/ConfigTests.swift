@@ -15,7 +15,8 @@ struct ConfigTests {
 
     @Test func saveCreatesDirectoriesAndRoundTrips() throws {
         let store = makeStore()
-        let config = Config(order: ["com.apple.Notes", "com.microsoft.Outlook"])
+        let config = Config(order: ["com.apple.Notes", "com.microsoft.Outlook"],
+                            preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: true))
         try store.save(config)
         #expect(store.load() == config)
     }
@@ -36,5 +37,17 @@ struct ConfigTests {
         let json = #"{"order": ["a"], "someFutureSetting": true}"#
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
         #expect(config.order == ["a"])
+    }
+
+    @Test func configWithoutPreferencesGetsDefaults() throws {
+        // Config files written before the Options screen existed.
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"order": ["a"]}"#.utf8))
+        #expect(config.preferences == Preferences())
+    }
+
+    @Test func partialPreferencesFillInDefaults() throws {
+        let json = #"{"preferences": {"hideHiddenApps": true}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(config.preferences == Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false))
     }
 }

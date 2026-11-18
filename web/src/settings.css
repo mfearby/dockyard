@@ -1,0 +1,29 @@
+:root {
+    --face: #c0c0c0;
+    --hi: #ffffff;
+    --lo: #808080;
+    --dark: #000000;
+}
+* { box-sizing: border-box; user-select: none; -webkit-user-select: none; cursor: default; }
+html, body { margin: 0; height: 100%; background: var(--face); color: var(--dark);
+    font: 12px -apple-system, "Helvetica Neue", sans-serif; }
+body { display: flex; flex-direction: column; padding: 12px; gap: 12px; }
+
+fieldset { margin: 0; padding: 10px 12px 12px; border: 0;
+    box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--hi), inset -2px -2px var(--lo); }
+legend { padding: 0 4px; }
+
+.check { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.check input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; flex: none;
+    background: var(--hi); position: relative;
+    box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
+.check input:checked::after { content: "✓"; position: absolute; inset: 0; font: bold 11px/13px sans-serif;
+    text-align: center; }
+
+.note { margin: 6px 0 0 21px; color: #333; }
+.note p { margin: 0 0 6px; line-height: 1.4; }
+
+button { background: var(--face); border: 0; font: inherit; color: inherit; min-width: 76px; height: 24px; padding: 0 10px;
+    box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--lo), inset 2px 2px var(--face); }
+button:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark), inset -2px -2px var(--face), inset 2px 2px var(--lo); }
+.buttons { display: flex; justify-content: flex-end; margin-top: auto; }

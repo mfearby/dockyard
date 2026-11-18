@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <link rel="stylesheet" href="settings.css" />
+    </head>
+    <body>
+        <fieldset>
+            <legend>Taskbar buttons</legend>
+            <label class="check">
+                <input type="checkbox" id="hideHiddenApps" />
+                <span>Don't show hidden apps (hidden with ⌘H)</span>
+            </label>
+            <label class="check">
+                <input type="checkbox" id="hideAppsWithoutWindows" />
+                <span>Don't show apps with no open windows</span>
+            </label>
+            <div id="axNote" class="note" hidden>
+                <p>
+                    Without Accessibility access, Dockyard can only see windows that are on screen,
+                    so apps whose windows are all minimised are left off the bar too.
+                </p>
+                <button id="grantAx">Grant Access…</button>
+            </div>
+        </fieldset>
+        <div class="buttons">
+            <button id="close">Close</button>
+        </div>
+        <script src="settings.js"></script>
+    </body>
+</html>
