@@ -2,7 +2,16 @@ import { onNative, send, type AppInfo } from './bridge.ts';
 import { applyOrder, dragTarget, moveItem, shiftFor } from './reorder.ts';
 
 const tasksEl = document.getElementById('tasks')!;
+const toggleEl = document.getElementById('toggle')!;
 const GAP = 2;
+
+let collapsed = false;
+
+function setCollapsed(value: boolean) {
+    collapsed = value;
+    document.body.classList.toggle('collapsed', value);
+    toggleEl.title = value ? 'Show taskbar' : 'Hide taskbar';
+}
 
 let apps: AppInfo[] = [];
 let dragging = false;
@@ -25,6 +34,7 @@ function render() {
 
 onNative((msg) => {
     if (msg.type !== 'state') return;
+    setCollapsed(msg.collapsed);
     if (dragging) { pending = msg.apps; return; }
     apps = msg.apps;
     render();
@@ -81,6 +91,15 @@ tasksEl.addEventListener('pointerdown', (e) => {
 });
 
 document.getElementById('start')!.addEventListener('click', () => send({ type: 'menu' }));
+
+toggleEl.addEventListener('click', () => {
+    // When retracting, hide the buttons before Swift shrinks the window, so the narrow strip never
+    // shows a sliver of the Start button. When expanding, wait for Swift to widen the window first;
+    // the state message it sends back removes the class.
+    const next = !collapsed;
+    if (next) setCollapsed(true);
+    send({ type: 'setCollapsed', collapsed: next });
+});
 
 const clock = document.getElementById('clock')!;
 const tick = () => { clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };

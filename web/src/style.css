@@ -35,3 +35,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
 .task.dragging { transition: none; z-index: 10; opacity: 0.85; }
 #tray { flex: none; height: var(--inset-h); padding: 0 10px; display: flex; align-items: center;
   box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi); }
+
+/* Thin button at the far right that retracts the bar. The arrow points the way the bar will move. */
+#toggle { flex: none; width: 12px; height: var(--button-h); padding: 0; margin-left: -2px; border: 0;
+  background: var(--face);
+  box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi),
+              inset -2px -2px var(--lo), inset 2px 2px var(--face); }
+#toggle:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark),
+                             inset -2px -2px var(--face), inset 2px 2px var(--lo); }
+#toggle::after { content: ""; display: block; margin: 0 auto; width: 0; height: 0;
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  border-left: 4px solid var(--dark); }
+
+/* Retracted: the window is BarLayout.collapsedWidth (16pt) wide and shows only the toggle. */
+body.collapsed #bar { padding: 3px 2px 2px; }
+body.collapsed #bar > :not(#toggle) { display: none; }
+body.collapsed #toggle { margin-left: 0; }
+body.collapsed #toggle::after { border-left: 0; border-right: 4px solid var(--dark); }

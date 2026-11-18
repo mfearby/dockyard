@@ -16,7 +16,7 @@ export interface Preferences {
 
 /** Messages from Swift to the page. */
 export type NativeMsg =
-    | { type: 'state'; apps: AppInfo[] }
+    | { type: 'state'; apps: AppInfo[]; collapsed: boolean }
     | {
           type: 'settings';
           preferences: Preferences;
@@ -33,6 +33,7 @@ export type UIMsg =
     | { type: 'menu' }
     | { type: 'activate'; bundleId: string }
     | { type: 'setOrder'; order: string[] }
+    | { type: 'setCollapsed'; collapsed: boolean }
     | { type: 'getSettings' }
     | { type: 'setPreferences'; preferences: Preferences }
     | { type: 'requestAccessibility' }

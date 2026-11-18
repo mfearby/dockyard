@@ -40,10 +40,13 @@ public struct Config: Codable, Equatable {
     /// Bundle IDs in the order the user arranged them on the bar.
     public var order: [String]
     public var preferences: Preferences
+    /// Whether the bar is retracted to just its toggle button. Remembered across restarts.
+    public var collapsed: Bool
 
-    public init(order: [String] = [], preferences: Preferences = Preferences()) {
+    public init(order: [String] = [], preferences: Preferences = Preferences(), collapsed: Bool = false) {
         self.order = order
         self.preferences = preferences
+        self.collapsed = collapsed
     }
 
     // Missing keys fall back to defaults so older config files keep loading as fields are added.
@@ -51,6 +54,7 @@ public struct Config: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         order = try c.decodeIfPresent([String].self, forKey: .order) ?? []
         preferences = try c.decodeIfPresent(Preferences.self, forKey: .preferences) ?? Preferences()
+        collapsed = try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false
     }
 }
 

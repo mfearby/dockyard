@@ -71,4 +71,15 @@ struct ConfigTests {
         prefs.barHeight = 36
         #expect(prefs.barHeight == 36)
     }
+
+    @Test func barStartsExpanded() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"order": ["a"]}"#.utf8))
+        #expect(config.collapsed == false)
+    }
+
+    @Test func collapsedStateRoundTrips() throws {
+        let store = makeStore()
+        try store.save(Config(collapsed: true))
+        #expect(store.load().collapsed == true)
+    }
 }

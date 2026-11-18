@@ -17,6 +17,11 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "setOrder", "order": ["a", "b"]]) == .setOrder(["a", "b"]))
     }
 
+    @Test func parsesSetCollapsed() {
+        #expect(UIMessage(body: ["type": "setCollapsed", "collapsed": true]) == .setCollapsed(true))
+        #expect(UIMessage(body: ["type": "setCollapsed", "collapsed": NSNumber(value: false)]) == .setCollapsed(false))
+    }
+
     @Test func parsesOptionsWindowMessages() {
         #expect(UIMessage(body: ["type": "getSettings"]) == .getSettings)
         #expect(UIMessage(body: ["type": "requestAccessibility"]) == .requestAccessibility)
@@ -56,6 +61,8 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "activate"]) == nil)
         #expect(UIMessage(body: ["type": "activate", "bundleId": 42]) == nil)
         #expect(UIMessage(body: ["type": "setOrder", "order": "a,b"]) == nil)
+        #expect(UIMessage(body: ["type": "setCollapsed"]) == nil)
+        #expect(UIMessage(body: ["type": "setCollapsed", "collapsed": "yes"]) == nil)
         #expect(UIMessage(body: ["type": "setPreferences"]) == nil)
         #expect(UIMessage(body: ["type": "setPreferences", "preferences": ["hideHiddenApps": true]]) == nil)
         #expect(UIMessage(body: setPreferences(height: "36")) == nil)
@@ -74,8 +81,9 @@ struct NativeMessageTests {
 
     @Test func stateHasTheShapeTheUIExpects() throws {
         let entry = AppEntry(bundleId: "com.apple.Notes", name: "Notes", icon: "data:image/png;base64,AA==", active: true)
-        let msg = try payload(NativeMessage.stateScript(apps: [entry]))
+        let msg = try payload(NativeMessage.stateScript(apps: [entry], collapsed: true))
         #expect(msg["type"] as? String == "state")
+        #expect(msg["collapsed"] as? Bool == true)
         let apps = try #require(msg["apps"] as? [[String: Any]])
         #expect(apps.count == 1)
         #expect(apps[0]["bundleId"] as? String == "com.apple.Notes")
@@ -118,6 +126,18 @@ struct BarLayoutTests {
         // A second display placed to the left of and below the main one.
         let frame = BarLayout.frame(screen: CGRect(x: -2560, y: -200, width: 2560, height: 1440), height: 40)
         #expect(frame == CGRect(x: -2560, y: -200, width: 2560, height: 40))
+    }
+
+    @Test func collapsedBarIsAThinStripInTheBottomRightCorner() {
+        let frame = BarLayout.frame(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), height: 36, collapsed: true)
+        #expect(frame == CGRect(x: 1920 - BarLayout.collapsedWidth, y: 0, width: BarLayout.collapsedWidth, height: 36))
+    }
+
+    @Test func collapsedBarFollowsAnOffsetScreen() {
+        let frame = BarLayout.frame(screen: CGRect(x: -2560, y: -200, width: 2560, height: 1440), height: 40, collapsed: true)
+        #expect(frame.maxX == 0)
+        #expect(frame.minY == -200)
+        #expect(frame.width == BarLayout.collapsedWidth)
     }
 
     @Test func measuresTheDockAtTheBottom() {

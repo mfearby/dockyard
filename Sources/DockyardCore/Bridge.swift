@@ -7,6 +7,7 @@ public enum UIMessage: Equatable {
     case ready
     case activate(bundleId: String)
     case setOrder([String])
+    case setCollapsed(Bool)
     case menu
     // From the Options window
     case getSettings
@@ -28,6 +29,9 @@ public enum UIMessage: Equatable {
         case "setOrder":
             guard let order = dict["order"] as? [String] else { return nil }
             self = .setOrder(order)
+        case "setCollapsed":
+            guard let collapsed = dict["collapsed"] as? Bool else { return nil }
+            self = .setCollapsed(collapsed)
         case "getSettings":
             self = .getSettings
         case "setPreferences":
@@ -67,6 +71,7 @@ public enum NativeMessage {
     private struct State: Encodable {
         let type = "state"
         let apps: [AppEntry]
+        let collapsed: Bool
     }
 
     private struct Settings: Encodable {
@@ -78,9 +83,9 @@ public enum NativeMessage {
         let barHeightMax = Preferences.barHeightRange.upperBound
     }
 
-    /// JavaScript that delivers the current app list to `window.onNative`.
-    public static func stateScript(apps: [AppEntry]) -> String {
-        script(State(apps: apps))
+    /// JavaScript that delivers the current app list, and whether the bar is retracted, to `window.onNative`.
+    public static func stateScript(apps: [AppEntry], collapsed: Bool = false) -> String {
+        script(State(apps: apps, collapsed: collapsed))
     }
 
     /// JavaScript that delivers the current preferences to the Options window.
@@ -96,9 +101,17 @@ public enum NativeMessage {
 }
 
 public enum BarLayout {
-    /// The bar's frame: full width along the bottom edge of the screen (AppKit's origin is bottom-left).
-    public static func frame(screen: CGRect, height: CGFloat) -> CGRect {
-        CGRect(x: screen.minX, y: screen.minY, width: screen.width, height: height)
+    /// Width of the retracted bar, which shows only the toggle button. Must match `body.collapsed` in web/src/style.css.
+    public static let collapsedWidth: CGFloat = 16
+
+    /// The bar's frame along the bottom edge of the screen (AppKit's origin is bottom-left): full width,
+    /// or when collapsed, a thin strip in the bottom-right corner so the Dock and screen edge are uncovered.
+    public static func frame(screen: CGRect, height: CGFloat, collapsed: Bool = false) -> CGRect {
+        guard collapsed else {
+            return CGRect(x: screen.minX, y: screen.minY, width: screen.width, height: height)
+        }
+        let width = min(collapsedWidth, screen.width)
+        return CGRect(x: screen.maxX - width, y: screen.minY, width: width, height: height)
     }
 
     /// Height the Dock reserves along the bottom of a screen: the gap between the screen's full frame

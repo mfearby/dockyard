@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func positionPanel() {
         guard let screen = primaryScreen else { return }
         let height = CGFloat(config.preferences.barHeight)
-        panel.setFrame(BarLayout.frame(screen: screen.frame, height: height), display: true)
+        panel.setFrame(BarLayout.frame(screen: screen.frame, height: height, collapsed: config.collapsed), display: true)
     }
 
     // MARK: Web content
@@ -209,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         guard force || apps != lastSent else { return }
         lastSent = apps
-        webView.evaluateJavaScript(NativeMessage.stateScript(apps: apps), completionHandler: nil)
+        webView.evaluateJavaScript(NativeMessage.stateScript(apps: apps, collapsed: config.collapsed), completionHandler: nil)
     }
 
     // MARK: Options window
@@ -270,6 +270,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .setOrder(let order):
             config.order = AppOrdering.merged(newOrder: order, into: config.order)
             try? store.save(config)
+            pushState(force: true)
+        case .setCollapsed(let collapsed):
+            config.collapsed = collapsed
+            try? store.save(config)
+            positionPanel()
             pushState(force: true)
         case .menu:
             showStartMenu()
