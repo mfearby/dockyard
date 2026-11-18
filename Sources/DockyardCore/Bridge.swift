@@ -33,8 +33,11 @@ public enum UIMessage: Equatable {
         case "setPreferences":
             guard let p = dict["preferences"] as? [String: Any],
                   let hideHidden = p["hideHiddenApps"] as? Bool,
-                  let hideWindowless = p["hideAppsWithoutWindows"] as? Bool else { return nil }
-            self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless))
+                  let hideWindowless = p["hideAppsWithoutWindows"] as? Bool,
+                  // JS numbers arrive as NSNumber and may be fractional, so round rather than require an Int.
+                  let height = (p["barHeight"] as? NSNumber)?.doubleValue, height.isFinite else { return nil }
+            self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
+                                               barHeight: Int(height.rounded())))
         case "requestAccessibility":
             self = .requestAccessibility
         case "closeSettings":
@@ -70,6 +73,9 @@ public enum NativeMessage {
         let type = "settings"
         let preferences: Preferences
         let accessibilityTrusted: Bool
+        let dockHeight: Int
+        let barHeightMin = Preferences.barHeightRange.lowerBound
+        let barHeightMax = Preferences.barHeightRange.upperBound
     }
 
     /// JavaScript that delivers the current app list to `window.onNative`.
@@ -78,8 +84,9 @@ public enum NativeMessage {
     }
 
     /// JavaScript that delivers the current preferences to the Options window.
-    public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool) -> String {
-        script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted))
+    /// `dockHeight` is the space the Dock reserves at the bottom of the screen, or 0 if it reserves none.
+    public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool, dockHeight: Int) -> String {
+        script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight))
     }
 
     private static func script<T: Encodable>(_ message: T) -> String {
@@ -92,5 +99,11 @@ public enum BarLayout {
     /// The bar's frame: full width along the bottom edge of the screen (AppKit's origin is bottom-left).
     public static func frame(screen: CGRect, height: CGFloat) -> CGRect {
         CGRect(x: screen.minX, y: screen.minY, width: screen.width, height: height)
+    }
+
+    /// Height the Dock reserves along the bottom of a screen: the gap between the screen's full frame
+    /// and its visible frame. 0 when the Dock is hidden, on another edge, or on another display.
+    public static func dockHeight(screen: CGRect, visible: CGRect) -> Int {
+        max(0, Int((visible.minY - screen.minY).rounded()))
     }
 }

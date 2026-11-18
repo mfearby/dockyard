@@ -1,4 +1,8 @@
 :root {
+  /* Sizes follow the window height (100vh), which the user sets in Options. 40pt gives the original look. */
+  --button-h: calc(100vh - 10px);
+  --inset-h: calc(100vh - 12px);
+  --icon: clamp(14px, calc(100vh - 20px), 32px);
   --face: #c0c0c0;
   --hi: #ffffff;
   --lo: #808080;
@@ -9,10 +13,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
   font: 12px -apple-system, "Helvetica Neue", sans-serif; color: var(--dark); }
 #bar { display: flex; align-items: center; height: 100%; padding: 3px 2px 2px;
   border-top: 2px solid var(--hi); gap: 4px; }
-.sep { width: 2px; height: 28px; border-left: 1px solid var(--lo); border-right: 1px solid var(--hi); }
+.sep { width: 2px; height: var(--inset-h); border-left: 1px solid var(--lo); border-right: 1px solid var(--hi); }
 
 .btn, #start, .task {
-  background: var(--face); height: 30px; display: flex; align-items: center; gap: 6px;
+  background: var(--face); height: var(--button-h); display: flex; align-items: center; gap: 6px;
   padding: 0 6px; border: 0; font: inherit; color: inherit;
   box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi),
               inset -2px -2px var(--lo), inset 2px 2px var(--face);
@@ -26,8 +30,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
 }
 #tasks { display: flex; gap: 2px; flex: 1; min-width: 0; position: relative; overflow: hidden; }
 .task { flex: 0 1 160px; min-width: 36px; overflow: hidden; transition: transform 0.12s; }
-.task img { width: 20px; height: 20px; flex: none; pointer-events: none; }
+.task img { width: var(--icon); height: var(--icon); flex: none; pointer-events: none; }
 .task span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
 .task.dragging { transition: none; z-index: 10; opacity: 0.85; }
-#tray { flex: none; height: 28px; padding: 0 10px; display: flex; align-items: center;
+#tray { flex: none; height: var(--inset-h); padding: 0 10px; display: flex; align-items: center;
   box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi); }

@@ -25,5 +25,14 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
-codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+# Sign with the local dev certificate if it exists (see setup-dev-cert.sh) so macOS keeps
+# permissions like Accessibility across rebuilds. Otherwise fall back to an ad-hoc signature.
+IDENTITY="Dockyard Local Dev"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
+    codesign --force --sign "$IDENTITY" "$APP"
+    echo "Signed with \"$IDENTITY\""
+else
+    codesign --force --sign - "$APP"
+    echo "Signed ad-hoc. Run scripts/setup-dev-cert.sh to keep permissions across rebuilds."
+fi
 echo "Built $APP"

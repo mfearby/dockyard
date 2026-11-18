@@ -6,16 +6,32 @@ public struct Preferences: Codable, Equatable {
     public var hideHiddenApps: Bool
     /// Leave apps with no open windows (such as Finder with every window closed) off the bar.
     public var hideAppsWithoutWindows: Bool
+    /// Bar height in points. Always within `barHeightRange`.
+    public var barHeight: Int {
+        didSet { barHeight = Preferences.clampBarHeight(barHeight) }
+    }
 
-    public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false) {
+    public static let defaultBarHeight = 40
+    /// Below 28pt the labels no longer fit; above 64pt the bar wastes space.
+    public static let barHeightRange = 28...64
+
+    public static func clampBarHeight(_ height: Int) -> Int {
+        min(max(height, barHeightRange.lowerBound), barHeightRange.upperBound)
+    }
+
+    public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
+                barHeight: Int = Preferences.defaultBarHeight) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
+        self.barHeight = Preferences.clampBarHeight(barHeight)
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         hideHiddenApps = try c.decodeIfPresent(Bool.self, forKey: .hideHiddenApps) ?? false
         hideAppsWithoutWindows = try c.decodeIfPresent(Bool.self, forKey: .hideAppsWithoutWindows) ?? false
+        barHeight = Preferences.clampBarHeight(
+            try c.decodeIfPresent(Int.self, forKey: .barHeight) ?? Preferences.defaultBarHeight)
     }
 }
 

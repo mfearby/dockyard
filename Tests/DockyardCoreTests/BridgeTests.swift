@@ -23,18 +23,30 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "closeSettings"]) == .closeSettings)
     }
 
-    @Test func parsesSetPreferences() {
-        let body: [String: Any] = ["type": "setPreferences",
-                                   "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false]]
-        #expect(UIMessage(body: body) == .setPreferences(Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false)))
+    private func setPreferences(height: Any) -> [String: Any] {
+        ["type": "setPreferences",
+         "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height]]
     }
 
-    @Test func parsesBooleansAsWebKitDeliversThem() {
-        // WebKit hands JS booleans over as NSNumber.
+    @Test func parsesSetPreferences() {
+        #expect(UIMessage(body: setPreferences(height: 36))
+            == .setPreferences(Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false, barHeight: 36)))
+    }
+
+    @Test func parsesValuesAsWebKitDeliversThem() {
+        // WebKit hands JS booleans and numbers over as NSNumber.
         let body: [String: Any] = ["type": "setPreferences",
                                    "preferences": ["hideHiddenApps": NSNumber(value: false),
-                                                   "hideAppsWithoutWindows": NSNumber(value: true)]]
-        #expect(UIMessage(body: body) == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true)))
+                                                   "hideAppsWithoutWindows": NSNumber(value: true),
+                                                   "barHeight": NSNumber(value: 36.0)]]
+        #expect(UIMessage(body: body)
+            == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36)))
+    }
+
+    @Test func roundsAndClampsBarHeight() {
+        #expect(UIMessage(body: setPreferences(height: 36.6)) == .setPreferences(Preferences(hideHiddenApps: true, barHeight: 37)))
+        #expect(UIMessage(body: setPreferences(height: 5)) == .setPreferences(Preferences(hideHiddenApps: true, barHeight: 28)))
+        #expect(UIMessage(body: setPreferences(height: 999)) == .setPreferences(Preferences(hideHiddenApps: true, barHeight: 64)))
     }
 
     @Test func rejectsMalformedMessages() {
@@ -46,6 +58,8 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "setOrder", "order": "a,b"]) == nil)
         #expect(UIMessage(body: ["type": "setPreferences"]) == nil)
         #expect(UIMessage(body: ["type": "setPreferences", "preferences": ["hideHiddenApps": true]]) == nil)
+        #expect(UIMessage(body: setPreferences(height: "36")) == nil)
+        #expect(UIMessage(body: setPreferences(height: Double.nan)) == nil)
     }
 }
 
@@ -72,13 +86,18 @@ struct NativeMessageTests {
 
     @Test func settingsHaveTheShapeTheUIExpects() throws {
         let script = NativeMessage.settingsScript(
-            preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false), accessibilityTrusted: false)
+            preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false, barHeight: 36),
+            accessibilityTrusted: false, dockHeight: 36)
         let msg = try payload(script)
         #expect(msg["type"] as? String == "settings")
         #expect(msg["accessibilityTrusted"] as? Bool == false)
+        #expect(msg["dockHeight"] as? Int == 36)
+        #expect(msg["barHeightMin"] as? Int == 28)
+        #expect(msg["barHeightMax"] as? Int == 64)
         let prefs = try #require(msg["preferences"] as? [String: Any])
         #expect(prefs["hideHiddenApps"] as? Bool == true)
         #expect(prefs["hideAppsWithoutWindows"] as? Bool == false)
+        #expect(prefs["barHeight"] as? Int == 36)
     }
 
     @Test func namesWithQuotesAndSlashesStaySafe() throws {
@@ -99,5 +118,23 @@ struct BarLayoutTests {
         // A second display placed to the left of and below the main one.
         let frame = BarLayout.frame(screen: CGRect(x: -2560, y: -200, width: 2560, height: 1440), height: 40)
         #expect(frame == CGRect(x: -2560, y: -200, width: 2560, height: 40))
+    }
+
+    @Test func measuresTheDockAtTheBottom() {
+        // Values from a real 1920x1080 display with a 16pt Dock and a 30pt menu bar.
+        let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        #expect(BarLayout.dockHeight(screen: screen, visible: CGRect(x: 0, y: 36, width: 1920, height: 1014)) == 36)
+    }
+
+    @Test func noDockMeansZero() {
+        // Dock hidden, on a side edge, or on another display.
+        let screen = CGRect(x: 0, y: 0, width: 1496, height: 967)
+        #expect(BarLayout.dockHeight(screen: screen, visible: CGRect(x: 0, y: 0, width: 1496, height: 939.5)) == 0)
+        #expect(BarLayout.dockHeight(screen: screen, visible: CGRect(x: 60, y: 0, width: 1436, height: 939.5)) == 0)
+    }
+
+    @Test func dockHeightUsesTheScreensOwnOrigin() {
+        let screen = CGRect(x: -1496, y: -200, width: 1496, height: 967)
+        #expect(BarLayout.dockHeight(screen: screen, visible: CGRect(x: -1496, y: -164, width: 1496, height: 903.5)) == 36)
     }
 }

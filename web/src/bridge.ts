@@ -10,12 +10,22 @@ export interface AppInfo {
 export interface Preferences {
     hideHiddenApps: boolean;
     hideAppsWithoutWindows: boolean;
+    /** Bar height in points. */
+    barHeight: number;
 }
 
 /** Messages from Swift to the page. */
 export type NativeMsg =
     | { type: 'state'; apps: AppInfo[] }
-    | { type: 'settings'; preferences: Preferences; accessibilityTrusted: boolean };
+    | {
+          type: 'settings';
+          preferences: Preferences;
+          accessibilityTrusted: boolean;
+          /** Space the Dock reserves at the bottom of the screen, or 0. */
+          dockHeight: number;
+          barHeightMin: number;
+          barHeightMax: number;
+      };
 
 /** Messages from the page to Swift. */
 export type UIMsg =

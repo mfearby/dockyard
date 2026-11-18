@@ -3,8 +3,6 @@ import ApplicationServices
 import DockyardCore
 import WebKit
 
-let barHeight: CGFloat = 40
-
 // MARK: - Window classes
 
 /// Borderless panel that never takes focus from the app you're working in.
@@ -94,9 +92,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     // MARK: Layout
 
+    /// The primary display (the one with the menu bar in System Settings > Displays > Arrange).
+    /// Not `NSScreen.main`: with "Displays have separate Spaces" on, that follows whichever screen is active,
+    /// which moved the bar to another display whenever the Dock did.
+    private var primaryScreen: NSScreen? { NSScreen.screens.first }
+
     private func positionPanel() {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        panel.setFrame(BarLayout.frame(screen: screen.frame, height: barHeight), display: true)
+        guard let screen = primaryScreen else { return }
+        let height = CGFloat(config.preferences.barHeight)
+        panel.setFrame(BarLayout.frame(screen: screen.frame, height: height), display: true)
     }
 
     // MARK: Web content
@@ -214,7 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if settingsWindow == nil {
             let view = makeWebView(WKWebView.self)
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 420, height: 250),
+                contentRect: NSRect(x: 0, y: 0, width: 420, height: 330),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false)
@@ -234,8 +238,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     private func sendSettings() {
+        let screen = primaryScreen
+        let dock = screen.map { BarLayout.dockHeight(screen: $0.frame, visible: $0.visibleFrame) } ?? 0
         let script = NativeMessage.settingsScript(
-            preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted())
+            preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted(), dockHeight: dock)
         settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
@@ -272,6 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .setPreferences(let prefs):
             config.preferences = prefs
             try? store.save(config)
+            positionPanel()
             updateWindowTimer()
             pushState()
             sendSettings()

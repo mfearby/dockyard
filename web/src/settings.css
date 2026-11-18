@@ -27,3 +27,11 @@ button { background: var(--face); border: 0; font: inherit; color: inherit; min-
     box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--lo), inset 2px 2px var(--face); }
 button:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark), inset -2px -2px var(--face), inset 2px 2px var(--lo); }
 .buttons { display: flex; justify-content: flex-end; margin-top: auto; }
+
+.row { display: flex; align-items: center; gap: 6px; }
+input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; font: inherit; background: var(--hi);
+    user-select: text; -webkit-user-select: text; cursor: text;
+    box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
+.row button { margin-left: 8px; }
+button:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); }
+#dockNote { margin-left: 0; margin-top: 6px; }
