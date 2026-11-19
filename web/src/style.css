@@ -32,8 +32,13 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
 }
 #tasks { display: flex; gap: 2px; flex: 1; min-width: 0; position: relative; overflow: hidden; }
 .task { flex: 0 1 160px; min-width: 36px; overflow: hidden; transition: transform 0.12s; }
-.task img { width: var(--icon); height: var(--icon); flex: none; pointer-events: none; }
-.task span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.task .icon { position: relative; flex: none; display: flex; pointer-events: none; }
+.task img { width: var(--icon); height: var(--icon); }
+.task .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+/* Dock badge (e.g. unread count) over the icon's top-right corner, like the Dock's own. */
+.task .badge { position: absolute; top: -3px; right: -5px; min-width: 14px; height: 14px; padding: 0 3px;
+  border-radius: 7px; background: #e0262b; color: #fff; font: 600 9px/14px -apple-system, sans-serif;
+  text-align: center; box-shadow: 0 0 0 1px var(--face); max-width: 30px; overflow: hidden; text-overflow: ellipsis; }
 .task.dragging { transition: none; z-index: 10; opacity: 0.85; }
 
 /* Thin button at the far right that retracts the bar. The arrow points the way the bar will move. */

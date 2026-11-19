@@ -37,11 +37,21 @@ function render() {
         el.className = 'task' + (a.active ? ' active' : '');
         el.dataset.id = a.id;
         el.dataset.tip = a.title;
+        const icon = document.createElement('span');
+        icon.className = 'icon';
         const img = document.createElement('img');
         img.src = a.icon;
+        icon.append(img);
+        if (a.badge) {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = a.badge;
+            icon.append(badge);
+        }
         const label = document.createElement('span');
+        label.className = 'label';
         label.textContent = a.name;
-        el.append(img, label);
+        el.append(icon, label);
         return el;
     }));
     sendTooltips();

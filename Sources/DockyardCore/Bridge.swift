@@ -131,14 +131,18 @@ public struct AppEntry: Codable, Equatable {
     public var title: String
     public var icon: String
     public var active: Bool
+    /// The app's Dock badge (e.g. an unread count), or nil for none. Omitted from the JSON when nil.
+    public var badge: String?
 
-    public init(id: String? = nil, bundleId: String, name: String, title: String? = nil, icon: String, active: Bool) {
+    public init(id: String? = nil, bundleId: String, name: String, title: String? = nil, icon: String, active: Bool,
+                badge: String? = nil) {
         self.id = id ?? ButtonID.app(bundleId)
         self.bundleId = bundleId
         self.name = name
         self.title = title ?? name
         self.icon = icon
         self.active = active
+        self.badge = badge
     }
 }
 

@@ -8,6 +8,8 @@ export interface AppInfo {
     name: string;
     /** Tooltip text. */
     title: string;
+    /** The app's Dock badge, such as an unread count. Absent when there's none. */
+    badge?: string;
     icon: string;
     active: boolean;
 }

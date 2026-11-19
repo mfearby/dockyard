@@ -50,6 +50,29 @@ enum AXWindows {
             .map { WindowInfo(key: WindowKey(element: $0), title: attribute($0, kAXTitleAttribute) as? String) }
     }
 
+    /// Badge text by bundle ID for running apps, read from the Dock's items. Empty without Accessibility,
+    /// or if the Dock doesn't answer.
+    static func dockBadges() -> [String: String] {
+        guard AXIsProcessTrusted(),
+              let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first
+        else { return [:] }
+        let dockElement = AXUIElementCreateApplication(dock.processIdentifier)
+        AXUIElementSetMessagingTimeout(dockElement, 0.25)
+        var items: [DockBadges.Item] = []
+        for list in attribute(dockElement, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+            for item in attribute(list, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+                guard let label = attribute(item, "AXStatusLabel") as? String,
+                      let url = attribute(item, kAXURLAttribute) as? URL else { continue }
+                items.append(DockBadges.Item(appPath: url.path, label: label))
+            }
+        }
+        var apps: [String: String] = [:]
+        for app in NSWorkspace.shared.runningApplications {
+            if let path = app.bundleURL?.path, let id = app.bundleIdentifier { apps[path] = id }
+        }
+        return DockBadges.match(items, apps: apps)
+    }
+
     static func focused(pid: pid_t) -> WindowKey? {
         let app = AXUIElementCreateApplication(pid)
         guard let value = attribute(app, kAXFocusedWindowAttribute), CFGetTypeID(value) == AXUIElementGetTypeID()
@@ -199,10 +222,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
     }
 
-    /// Windows opening, closing, being renamed or switching focus within an app don't post workspace
-    /// notifications, so poll while a preference depends on them.
+    /// Windows opening, closing, being renamed or switching focus within an app, and Dock badges changing,
+    /// don't post workspace notifications, so poll while something depends on them.
     private func updateWindowTimer() {
-        if config.preferences.hideAppsWithoutWindows || config.preferences.separateWindows {
+        let prefs = config.preferences
+        if prefs.hideAppsWithoutWindows || prefs.separateWindows || AXIsProcessTrusted() {
             guard windowTimer == nil else { return }
             windowTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 self?.pushState()
@@ -281,6 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let lists = windowLists()
         let separate = config.preferences.separateWindows && AXIsProcessTrusted()
         let front = NSWorkspace.shared.frontmostApplication
+        let badges = AXWindows.dockBadges()
         let apps = runningApps(windowLists: lists)
         windowRegistry.retain(pids: Set(apps.map(\.processIdentifier)))
 
@@ -289,8 +314,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let name = app.localizedName ?? id
             let icon = iconDataURL(for: app, id: id)
             let isFront = app.processIdentifier == front?.processIdentifier
+            let badge = badges[id]
             guard separate, let list = lists[app.processIdentifier], !list.isEmpty else {
-                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront)]
+                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront, badge: badge)]
             }
             let titles = Dictionary(list.map { ($0.key, $0.title) }, uniquingKeysWith: { first, _ in first })
             let focused = isFront ? AXWindows.focused(pid: app.processIdentifier) : nil
@@ -299,7 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 // The tooltip repeats the full label, which the button may have cut short.
                 return AppEntry(id: ButtonID.window(id, serial: window.serial), bundleId: id,
                                 name: WindowLabel.name(title: title, appName: name),
-                                icon: icon, active: window.key == focused)
+                                icon: icon, active: window.key == focused, badge: badge)
             }
         }
     }
@@ -363,6 +389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func windowDidBecomeKey(_ notification: Notification) {
         sendSettings()
         updateWindowManager()
+        updateWindowTimer()  // Accessibility may have just been granted, which turns on badge polling
     }
 
     // MARK: "Never show" list
