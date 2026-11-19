@@ -16,38 +16,56 @@ final class BarWebView: WKWebView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-// MARK: - Window counting
+// MARK: - Windows via Accessibility
 
-/// Counts each app's open windows for the "hide apps without windows" preference.
-/// Uses Accessibility when permitted (includes minimised windows); otherwise falls back to on-screen windows.
-struct WindowCounter {
-    let trusted = AXIsProcessTrusted()
-    private let onscreen: [Int32: Int]
+/// Lets an AXUIElement be used as a dictionary key or in WindowRegistry. Equality is Accessibility's own
+/// (same window), not object identity: each query returns a new AXUIElement for the same window.
+struct WindowKey: Hashable {
+    let element: AXUIElement
+    static func == (a: WindowKey, b: WindowKey) -> Bool { CFEqual(a.element, b.element) }
+    func hash(into hasher: inout Hasher) { hasher.combine(CFHash(element)) }
+}
 
-    init() {
-        if trusted {
-            onscreen = [:]
-        } else {
-            let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-                as? [[String: Any]] ?? []
-            onscreen = WindowCounting.onscreenCounts(windowInfo: info)
-        }
+/// One of an app's user-facing windows.
+struct WindowInfo {
+    let key: WindowKey
+    let title: String?
+}
+
+enum AXWindows {
+    private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
     }
 
-    func count(for app: NSRunningApplication) -> Int {
-        guard trusted else { return onscreen[app.processIdentifier] ?? 0 }
-        let element = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(element, 0.25)  // don't let a hung app stall the bar
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
-              let windows = value as? [AXUIElement] else {
-            return 1  // can't tell, so keep the app on the bar
+    /// The app's standard windows and dialogs, including minimised ones. Only windows on the current Space
+    /// are reported by Accessibility. Returns nil if the app doesn't answer.
+    static func list(pid: pid_t) -> [WindowInfo]? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.25)  // don't let a hung app stall the bar
+        guard let windows = attribute(app, kAXWindowsAttribute) as? [AXUIElement] else { return nil }
+        return windows
+            .filter { WindowCounting.isCountable(axSubrole: attribute($0, kAXSubroleAttribute) as? String) }
+            .map { WindowInfo(key: WindowKey(element: $0), title: attribute($0, kAXTitleAttribute) as? String) }
+    }
+
+    static func focused(pid: pid_t) -> WindowKey? {
+        let app = AXUIElementCreateApplication(pid)
+        guard let value = attribute(app, kAXFocusedWindowAttribute), CFGetTypeID(value) == AXUIElementGetTypeID()
+        else { return nil }
+        return WindowKey(element: value as! AXUIElement)
+    }
+
+    /// Brings one window to the front, un-minimising it if needed, then activates its app.
+    static func raise(_ window: AXUIElement, of app: NSRunningApplication) {
+        if app.isHidden { app.unhide() }
+        if attribute(window, kAXMinimizedAttribute) as? Bool == true {
+            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         }
-        return windows.filter { window in
-            var subrole: CFTypeRef?
-            AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subrole)
-            return WindowCounting.isCountable(axSubrole: subrole as? String)
-        }.count
+        AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        // Without .activateAllWindows, so only the raised window comes forward.
+        app.activate(options: [])
     }
 }
 
@@ -67,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var lastSent: [AppEntry]?
     private var windowTimer: Timer?
     private lazy var windowManager = WindowManager { [weak self] in self?.fittingArea() }
+    private let windowRegistry = WindowRegistry<WindowKey>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         webDir = findWebDir()
@@ -177,9 +196,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             }
     }
 
-    /// Windows opening and closing don't post workspace notifications, so poll while that preference is on.
+    /// Windows opening, closing, being renamed or switching focus within an app don't post workspace
+    /// notifications, so poll while a preference depends on them.
     private func updateWindowTimer() {
-        if config.preferences.hideAppsWithoutWindows {
+        if config.preferences.hideAppsWithoutWindows || config.preferences.separateWindows {
             guard windowTimer == nil else { return }
             windowTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 self?.pushState()
@@ -208,14 +228,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         return url
     }
 
-    private func runningApps() -> [NSRunningApplication] {
+    /// Each regular app's windows, read once per refresh. Empty when no preference needs them or
+    /// Accessibility isn't granted.
+    private func windowLists() -> [pid_t: [WindowInfo]] {
+        let prefs = config.preferences
+        guard prefs.hideAppsWithoutWindows || prefs.separateWindows, AXIsProcessTrusted() else { return [:] }
+        var lists: [pid_t: [WindowInfo]] = [:]
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && !app.isTerminated {
+            if let list = AXWindows.list(pid: app.processIdentifier) { lists[app.processIdentifier] = list }
+        }
+        return lists
+    }
+
+    private func runningApps(windowLists: [pid_t: [WindowInfo]]) -> [NSRunningApplication] {
         let me = Bundle.main.bundleIdentifier
         let prefs = config.preferences
-        let counter = prefs.hideAppsWithoutWindows ? WindowCounter() : nil
+        // Without Accessibility, fall back to counting on-screen windows.
+        var onscreen: [Int32: Int]?
+        if prefs.hideAppsWithoutWindows && !AXIsProcessTrusted() {
+            let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] ?? []
+            onscreen = WindowCounting.onscreenCounts(windowInfo: info)
+        }
         let apps = NSWorkspace.shared.runningApplications.filter { app in
             let isRegular = app.activationPolicy == .regular
-            // Only count windows where the answer matters; Accessibility calls aren't free.
-            let windowCount = (counter != nil && isRegular && !app.isHidden) ? counter?.count(for: app) : nil
+            var windowCount: Int?
+            if prefs.hideAppsWithoutWindows && isRegular && !app.isHidden {
+                if let onscreen {
+                    windowCount = onscreen[app.processIdentifier] ?? 0
+                } else {
+                    // An app that didn't answer has no list; keep it on the bar rather than guess.
+                    windowCount = windowLists[app.processIdentifier]?.count
+                }
+            }
             let snapshot = AppSnapshot(bundleId: app.bundleIdentifier, isRegular: isRegular,
                                        isTerminated: app.isTerminated, isHidden: app.isHidden,
                                        windowCount: windowCount)
@@ -224,17 +269,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         return AppOrdering.sorted(apps, by: config.order) { $0.bundleIdentifier! }
     }
 
-    /// Sends the app list to the bar. Skips the send when nothing changed, since the window timer calls this every second.
-    private func pushState(force: Bool = false) {
-        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let apps = runningApps().map { app in
+    /// The bar's buttons: one per app, or with "separate windows" on, one per window for apps that have any.
+    private func entries() -> [AppEntry] {
+        let lists = windowLists()
+        let separate = config.preferences.separateWindows && AXIsProcessTrusted()
+        let front = NSWorkspace.shared.frontmostApplication
+        let apps = runningApps(windowLists: lists)
+        windowRegistry.retain(pids: Set(apps.map(\.processIdentifier)))
+
+        return apps.flatMap { app -> [AppEntry] in
             let id = app.bundleIdentifier!
-            return AppEntry(bundleId: id, name: app.localizedName ?? id,
-                            icon: iconDataURL(for: app, id: id), active: id == front)
+            let name = app.localizedName ?? id
+            let icon = iconDataURL(for: app, id: id)
+            let isFront = app.processIdentifier == front?.processIdentifier
+            guard separate, let list = lists[app.processIdentifier], !list.isEmpty else {
+                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront)]
+            }
+            let titles = Dictionary(list.map { ($0.key, $0.title) }, uniquingKeysWith: { first, _ in first })
+            let focused = isFront ? AXWindows.focused(pid: app.processIdentifier) : nil
+            return windowRegistry.update(pid: app.processIdentifier, keys: list.map(\.key)).map { window in
+                let title = titles[window.key] ?? nil
+                return AppEntry(id: ButtonID.window(id, serial: window.serial), bundleId: id,
+                                name: WindowLabel.name(title: title, appName: name),
+                                title: WindowLabel.tooltip(title: title, appName: name),
+                                icon: icon, active: window.key == focused)
+            }
         }
+    }
+
+    /// Sends the buttons to the bar. Skips the send when nothing changed, since the window timer calls this every second.
+    private func pushState(force: Bool = false) {
+        let apps = entries()
         guard force || apps != lastSent else { return }
         lastSent = apps
         webView.evaluateJavaScript(NativeMessage.stateScript(apps: apps, collapsed: config.collapsed), completionHandler: nil)
+    }
+
+    private func activate(buttonID: String) {
+        let parsed = ButtonID.parse(buttonID)
+        if let serial = parsed.window, let window = windowRegistry.lookup(serial: serial),
+           let app = NSRunningApplication(processIdentifier: window.pid) {
+            AXWindows.raise(window.key.element, of: app)
+        } else if let app = NSRunningApplication.runningApplications(withBundleIdentifier: parsed.bundleId).first {
+            if app.isHidden { app.unhide() }
+            app.activate(options: [.activateAllWindows])
+        }
+        // Switching windows within the frontmost app posts no workspace notification, so refresh the highlight.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.pushState() }
     }
 
     // MARK: Options window
@@ -299,12 +380,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .ready:
             pushState(force: true)
         case .activate(let id):
-            if let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
-                if app.isHidden { app.unhide() }
-                app.activate(options: [.activateAllWindows])
-            }
-        case .setOrder(let order):
-            config.order = AppOrdering.merged(newOrder: order, into: config.order)
+            activate(buttonID: id)
+        case .setOrder(let ids):
+            // Apps keep their saved positions; window order within an app lasts while its windows are open.
+            config.order = AppOrdering.merged(newOrder: AppOrdering.bundleOrder(fromButtonIDs: ids), into: config.order)
+            windowRegistry.reorder(serials: ids.compactMap { ButtonID.parse($0).window })
             try? store.save(config)
             pushState(force: true)
         case .setCollapsed(let collapsed):

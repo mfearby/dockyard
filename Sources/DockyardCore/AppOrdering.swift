@@ -16,6 +16,12 @@ public enum AppOrdering {
         let running = Set(newOrder)
         return newOrder + saved.filter { !running.contains($0) }
     }
+
+    /// The app order implied by the bar's button order: each app's position is that of its first button.
+    public static func bundleOrder(fromButtonIDs ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.map { ButtonID.parse($0).bundleId }.filter { seen.insert($0).inserted }
+    }
 }
 
 /// What the bar needs to know about a running app to decide whether to show it.

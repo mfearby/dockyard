@@ -10,7 +10,7 @@ struct UIMessageTests {
     }
 
     @Test func parsesActivate() {
-        #expect(UIMessage(body: ["type": "activate", "bundleId": "com.apple.Notes"]) == .activate(bundleId: "com.apple.Notes"))
+        #expect(UIMessage(body: ["type": "activate", "id": "com.apple.Notes"]) == .activate(id: "com.apple.Notes"))
     }
 
     @Test func parsesSetOrder() {
@@ -31,7 +31,7 @@ struct UIMessageTests {
     private func setPreferences(height: Any = 40, screenSpace: Any = "coverDock") -> [String: Any] {
         ["type": "setPreferences",
          "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
-                         "screenSpace": screenSpace]]
+                         "screenSpace": screenSpace, "separateWindows": false]]
     }
 
     @Test func parsesSetPreferences() {
@@ -45,9 +45,11 @@ struct UIMessageTests {
                                    "preferences": ["hideHiddenApps": NSNumber(value: false),
                                                    "hideAppsWithoutWindows": NSNumber(value: true),
                                                    "barHeight": NSNumber(value: 36.0),
-                                                   "screenSpace": "coverDock"]]
+                                                   "screenSpace": "coverDock",
+                                                   "separateWindows": NSNumber(value: true)]]
         #expect(UIMessage(body: body)
-            == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36)))
+            == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36,
+                                           separateWindows: true)))
     }
 
     @Test func roundsAndClampsBarHeight() {
@@ -71,7 +73,8 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["kind": "ready"]) == nil)
         #expect(UIMessage(body: ["type": "unknown"]) == nil)
         #expect(UIMessage(body: ["type": "activate"]) == nil)
-        #expect(UIMessage(body: ["type": "activate", "bundleId": 42]) == nil)
+        #expect(UIMessage(body: ["type": "activate", "id": 42]) == nil)
+        #expect(UIMessage(body: ["type": "activate", "bundleId": "com.apple.Notes"]) == nil)
         #expect(UIMessage(body: ["type": "setOrder", "order": "a,b"]) == nil)
         #expect(UIMessage(body: ["type": "setCollapsed"]) == nil)
         #expect(UIMessage(body: ["type": "setCollapsed", "collapsed": "yes"]) == nil)
@@ -81,6 +84,36 @@ struct UIMessageTests {
         #expect(UIMessage(body: setPreferences(height: Double.nan)) == nil)
         #expect(UIMessage(body: setPreferences(screenSpace: "somethingElse")) == nil)
         #expect(UIMessage(body: setPreferences(screenSpace: 1)) == nil)
+    }
+}
+
+struct ButtonIDTests {
+    @Test func appButtonsUseTheBundleId() {
+        #expect(ButtonID.app("com.apple.Notes") == "com.apple.Notes")
+        #expect(ButtonID.parse("com.apple.Notes") == ("com.apple.Notes", nil))
+    }
+
+    @Test func windowButtonsRoundTrip() {
+        let id = ButtonID.window("com.jetbrains.intellij", serial: 7)
+        #expect(id == "com.jetbrains.intellij#7")
+        #expect(ButtonID.parse(id) == ("com.jetbrains.intellij", 7))
+    }
+
+    @Test func malformedSerialIsTreatedAsAnAppButton() {
+        #expect(ButtonID.parse("com.example#abc") == ("com.example#abc", nil))
+    }
+}
+
+struct WindowLabelTests {
+    @Test func usesTheWindowTitle() {
+        #expect(WindowLabel.name(title: "dockyard \u{2013} main.swift", appName: "IntelliJ IDEA") == "dockyard \u{2013} main.swift")
+        #expect(WindowLabel.tooltip(title: "dockyard", appName: "IntelliJ IDEA") == "IntelliJ IDEA \u{2013} dockyard")
+    }
+
+    @Test func untitledWindowsUseTheAppName() {
+        #expect(WindowLabel.name(title: nil, appName: "Notes") == "Notes")
+        #expect(WindowLabel.name(title: "   ", appName: "Notes") == "Notes")
+        #expect(WindowLabel.tooltip(title: "", appName: "Notes") == "Notes")
     }
 }
 
@@ -100,7 +133,9 @@ struct NativeMessageTests {
         #expect(msg["collapsed"] as? Bool == true)
         let apps = try #require(msg["apps"] as? [[String: Any]])
         #expect(apps.count == 1)
+        #expect(apps[0]["id"] as? String == "com.apple.Notes")
         #expect(apps[0]["bundleId"] as? String == "com.apple.Notes")
+        #expect(apps[0]["title"] as? String == "Notes")
         #expect(apps[0]["name"] as? String == "Notes")
         #expect(apps[0]["icon"] as? String == "data:image/png;base64,AA==")
         #expect(apps[0]["active"] as? Bool == true)

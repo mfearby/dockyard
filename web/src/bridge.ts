@@ -1,8 +1,13 @@
 // Message types shared with the Swift host. Field names must match DockyardCore/Bridge.swift.
 
 export interface AppInfo {
+    /** Unique per button: the bundle ID for an app button, or "bundleId#serial" for a window button. */
+    id: string;
     bundleId: string;
+    /** Button label: the app name or window title. */
     name: string;
+    /** Tooltip text. */
+    title: string;
     icon: string;
     active: boolean;
 }
@@ -20,6 +25,8 @@ export interface Preferences {
     /** Bar height in points. */
     barHeight: number;
     screenSpace: ScreenSpace;
+    /** One button per window instead of per app. */
+    separateWindows: boolean;
 }
 
 /** Messages from Swift to the page. */
@@ -39,7 +46,8 @@ export type NativeMsg =
 export type UIMsg =
     | { type: 'ready' }
     | { type: 'menu' }
-    | { type: 'activate'; bundleId: string }
+    | { type: 'activate'; id: string }
+    /** `order` lists button IDs left to right. */
     | { type: 'setOrder'; order: string[] }
     | { type: 'setCollapsed'; collapsed: boolean }
     | { type: 'getSettings' }

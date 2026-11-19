@@ -38,6 +38,6 @@ test('moveItem: moves forwards and backwards without mutating the input', () => 
 });
 
 test('applyOrder: sorts known ids and keeps unknown ones at the end in arrival order', () => {
-    const apps = ['x', 'b', 'y', 'a'].map((bundleId) => ({ bundleId }));
-    assert.deepEqual(applyOrder(apps, ['a', 'b']).map((a) => a.bundleId), ['a', 'b', 'x', 'y']);
+    const apps = ['x', 'b', 'y', 'a'].map((id) => ({ id }));
+    assert.deepEqual(applyOrder(apps, ['a', 'b']).map((a) => a.id), ['a', 'b', 'x', 'y']);
 });

@@ -31,6 +31,12 @@ struct AppOrderingTests {
         #expect(AppOrdering.merged(newOrder: ["c", "a"], into: ["a", "b", "c", "d"]) == ["c", "a", "b", "d"])
     }
 
+    @Test func bundleOrderFromWindowButtons() {
+        // Two IntelliJ windows either side of Notes: IntelliJ's position is that of its first button.
+        let ids = ["com.jetbrains.intellij#3", "com.apple.Notes", "com.jetbrains.intellij#1", "com.apple.finder"]
+        #expect(AppOrdering.bundleOrder(fromButtonIDs: ids) == ["com.jetbrains.intellij", "com.apple.Notes", "com.apple.finder"])
+    }
+
     @Test func mergeIntoEmptySavedOrder() {
         #expect(AppOrdering.merged(newOrder: ["b", "a"], into: []) == ["b", "a"])
     }

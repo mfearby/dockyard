@@ -21,8 +21,8 @@ function render() {
     tasksEl.replaceChildren(...apps.map((a) => {
         const el = document.createElement('div');
         el.className = 'task' + (a.active ? ' active' : '');
-        el.dataset.id = a.bundleId;
-        el.title = a.name;
+        el.dataset.id = a.id;
+        el.title = a.title;
         const img = document.createElement('img');
         img.src = a.icon;
         const label = document.createElement('span');
@@ -74,12 +74,12 @@ tasksEl.addEventListener('pointerdown', (e) => {
         dragging = false;
         if (moved) {
             apps = moveItem(apps, from, to);
-            const order = apps.map((x) => x.bundleId);
+            const order = apps.map((x) => x.id);
             // An update that arrived mid-drag was sorted by the old order; re-sort it by the new one.
             if (pending) { apps = applyOrder(pending, order); pending = null; }
             send({ type: 'setOrder', order });
         } else {
-            send({ type: 'activate', bundleId: el.dataset.id! });
+            send({ type: 'activate', id: el.dataset.id! });
             if (pending) { apps = pending; pending = null; }
         }
         render();

@@ -4,10 +4,12 @@ import { canMatchDock, parseBarHeight } from './prefs.ts';
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const hideHiddenApps = byId<HTMLInputElement>('hideHiddenApps');
 const hideAppsWithoutWindows = byId<HTMLInputElement>('hideAppsWithoutWindows');
+const separateWindows = byId<HTMLInputElement>('separateWindows');
 const screenSpaceRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="screenSpace"]'));
 const barHeight = byId<HTMLInputElement>('barHeight');
 const matchDock = byId<HTMLButtonElement>('matchDock');
 const axNote = byId<HTMLDivElement>('axNote');
+const windowsAxNote = byId<HTMLDivElement>('windowsAxNote');
 const moveAxNote = byId<HTMLDivElement>('moveAxNote');
 const dockNote = byId<HTMLSpanElement>('dockNote');
 
@@ -28,6 +30,7 @@ function current(): Preferences {
         hideAppsWithoutWindows: hideAppsWithoutWindows.checked,
         barHeight: height,
         screenSpace: screenSpace(),
+        separateWindows: separateWindows.checked,
     };
 }
 
@@ -38,6 +41,7 @@ function save() {
 function updateNotes() {
     const mode = screenSpace();
     axNote.hidden = accessibilityTrusted || !hideAppsWithoutWindows.checked;
+    windowsAxNote.hidden = accessibilityTrusted || !separateWindows.checked;
     moveAxNote.hidden = accessibilityTrusted || mode !== 'moveWindows';
     const matchable = canMatchDock(dockHeight, min, max);
     matchDock.disabled = mode !== 'coverDock' || !matchable || height === dockHeight;
@@ -50,6 +54,7 @@ onNative((msg) => {
     if (msg.type !== 'settings') return;
     hideHiddenApps.checked = msg.preferences.hideHiddenApps;
     hideAppsWithoutWindows.checked = msg.preferences.hideAppsWithoutWindows;
+    separateWindows.checked = msg.preferences.separateWindows;
     for (const radio of screenSpaceRadios) radio.checked = radio.value === msg.preferences.screenSpace;
     accessibilityTrusted = msg.accessibilityTrusted;
     dockHeight = msg.dockHeight;
@@ -63,7 +68,7 @@ onNative((msg) => {
     updateNotes();
 });
 
-for (const input of [hideHiddenApps, hideAppsWithoutWindows, ...screenSpaceRadios]) {
+for (const input of [hideHiddenApps, hideAppsWithoutWindows, separateWindows, ...screenSpaceRadios]) {
     input.addEventListener('change', () => {
         updateNotes();
         save();

@@ -101,4 +101,15 @@ struct ConfigTests {
         #expect(config.preferences.barHeight == 36)
         #expect(config.order == ["a"])
     }
+
+    @Test func windowsAreGroupedByDefault() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"preferences": {}}"#.utf8))
+        #expect(config.preferences.separateWindows == false)
+    }
+
+    @Test func separateWindowsRoundTrips() throws {
+        let store = makeStore()
+        try store.save(Config(preferences: Preferences(separateWindows: true)))
+        #expect(store.load().preferences.separateWindows == true)
+    }
 }

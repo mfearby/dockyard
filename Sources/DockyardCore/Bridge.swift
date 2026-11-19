@@ -5,7 +5,8 @@ import Foundation
 public enum UIMessage: Equatable {
     // From the bar
     case ready
-    case activate(bundleId: String)
+    /// `id` is a button ID: see `ButtonID`.
+    case activate(id: String)
     case setOrder([String])
     case setCollapsed(Bool)
     case menu
@@ -25,8 +26,8 @@ public enum UIMessage: Equatable {
         case "menu":
             self = .menu
         case "activate":
-            guard let id = dict["bundleId"] as? String else { return nil }
-            self = .activate(bundleId: id)
+            guard let id = dict["id"] as? String else { return nil }
+            self = .activate(id: id)
         case "setOrder":
             guard let order = dict["order"] as? [String] else { return nil }
             self = .setOrder(order)
@@ -41,9 +42,11 @@ public enum UIMessage: Equatable {
                   let hideWindowless = p["hideAppsWithoutWindows"] as? Bool,
                   // JS numbers arrive as NSNumber and may be fractional, so round rather than require an Int.
                   let height = (p["barHeight"] as? NSNumber)?.doubleValue, height.isFinite,
-                  let space = (p["screenSpace"] as? String).flatMap(ScreenSpace.init(rawValue:)) else { return nil }
+                  let space = (p["screenSpace"] as? String).flatMap(ScreenSpace.init(rawValue:)),
+                  let separate = p["separateWindows"] as? Bool else { return nil }
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
-                                               barHeight: Int(height.rounded()), screenSpace: space))
+                                               barHeight: Int(height.rounded()), screenSpace: space,
+                                               separateWindows: separate))
         case "requestAccessibility":
             self = .requestAccessibility
         case "resizeSettings":
@@ -57,18 +60,52 @@ public enum UIMessage: Equatable {
     }
 }
 
+/// Identifies a button on the bar: an app (its bundle ID) or one of its windows ("bundleId#serial").
+public enum ButtonID {
+    public static func app(_ bundleId: String) -> String { bundleId }
+
+    public static func window(_ bundleId: String, serial: Int) -> String { "\(bundleId)#\(serial)" }
+
+    /// Splits an ID into its bundle ID and window serial (nil for an app button). Bundle IDs never contain "#".
+    public static func parse(_ id: String) -> (bundleId: String, window: Int?) {
+        guard let hash = id.lastIndex(of: "#"), let serial = Int(id[id.index(after: hash)...]) else { return (id, nil) }
+        return (String(id[..<hash]), serial)
+    }
+}
+
 /// One button on the bar, as sent to the UI. Field names must match `AppInfo` in web/src/bridge.ts.
 public struct AppEntry: Codable, Equatable {
+    /// Unique per button; see `ButtonID`.
+    public var id: String
     public var bundleId: String
+    /// The button's label: the app name, or the window title.
     public var name: String
+    /// Tooltip text.
+    public var title: String
     public var icon: String
     public var active: Bool
 
-    public init(bundleId: String, name: String, icon: String, active: Bool) {
+    public init(id: String? = nil, bundleId: String, name: String, title: String? = nil, icon: String, active: Bool) {
+        self.id = id ?? ButtonID.app(bundleId)
         self.bundleId = bundleId
         self.name = name
+        self.title = title ?? name
         self.icon = icon
         self.active = active
+    }
+}
+
+public enum WindowLabel {
+    /// A window button's label: its title, or the app name for untitled windows.
+    public static func name(title: String?, appName: String) -> String {
+        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? appName : trimmed
+    }
+
+    /// A window button's tooltip, e.g. "IntelliJ IDEA – dockyard".
+    public static func tooltip(title: String?, appName: String) -> String {
+        let label = name(title: title, appName: appName)
+        return label == appName ? appName : "\(appName) \u{2013} \(label)"
     }
 }
 

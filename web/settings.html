@@ -15,6 +15,14 @@
                 <input type="checkbox" id="hideAppsWithoutWindows" />
                 <span>Don't show apps with no open windows</span>
             </label>
+            <label class="check">
+                <input type="checkbox" id="separateWindows" />
+                <span>Show each window as a separate button</span>
+            </label>
+            <div id="windowsAxNote" class="note" hidden>
+                <p>This needs Accessibility access.</p>
+                <button class="grantAx">Grant Access…</button>
+            </div>
             <div id="axNote" class="note" hidden>
                 <p>
                     Without Accessibility access, Dockyard can only see windows that are on screen,

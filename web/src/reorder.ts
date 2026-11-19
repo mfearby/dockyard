@@ -23,10 +23,10 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
 }
 
 /** Sorts items by their position in `order`; items not in `order` keep their relative order at the end. */
-export function applyOrder<T extends { bundleId: string }>(items: readonly T[], order: readonly string[]): T[] {
+export function applyOrder<T extends { id: string }>(items: readonly T[], order: readonly string[]): T[] {
     const rank = new Map(order.map((id, i) => [id, i]));
     return items
-        .map((item, i) => ({ item, i, r: rank.get(item.bundleId) ?? Infinity }))
+        .map((item, i) => ({ item, i, r: rank.get(item.id) ?? Infinity }))
         .sort((a, b) => a.r - b.r || a.i - b.i)
         .map((x) => x.item);
 }
