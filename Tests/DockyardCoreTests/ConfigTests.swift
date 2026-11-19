@@ -112,4 +112,15 @@ struct ConfigTests {
         try store.save(Config(preferences: Preferences(separateWindows: true)))
         #expect(store.load().preferences.separateWindows == true)
     }
+
+    @Test func excludedAppsDefaultToNone() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"preferences": {}}"#.utf8))
+        #expect(config.preferences.excludedApps.isEmpty)
+    }
+
+    @Test func excludedAppsRoundTripInOrder() throws {
+        let store = makeStore()
+        try store.save(Config(preferences: Preferences(excludedApps: ["com.spotify.client", "com.apple.Music"])))
+        #expect(store.load().preferences.excludedApps == ["com.spotify.client", "com.apple.Music"])
+    }
 }

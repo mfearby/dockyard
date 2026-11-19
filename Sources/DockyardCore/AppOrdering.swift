@@ -47,7 +47,8 @@ public enum AppFilter {
     /// Whether a running app belongs on the bar: ordinary apps with a bundle ID, excluding Dockyard itself,
     /// then narrowed by the user's preferences.
     public static func shouldShow(_ app: AppSnapshot, preferences: Preferences, ownBundleId: String?) -> Bool {
-        guard let bundleId = app.bundleId, app.isRegular, !app.isTerminated, bundleId != ownBundleId else { return false }
+        guard let bundleId = app.bundleId, app.isRegular, !app.isTerminated, bundleId != ownBundleId,
+              !preferences.excludedApps.contains(bundleId) else { return false }
         if app.isHidden {
             // Hidden apps are governed only by hideHiddenApps; their windows are off screen,
             // so the window check below would otherwise remove them too.

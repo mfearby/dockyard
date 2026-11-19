@@ -22,6 +22,8 @@ public struct Preferences: Codable, Equatable {
     public var screenSpace: ScreenSpace
     /// Give each window its own button (labelled with the window title) instead of one button per app.
     public var separateWindows: Bool
+    /// Bundle IDs of apps that never get a button on the bar, in the order the user added them.
+    public var excludedApps: [String]
 
     public static let defaultBarHeight = 40
     /// Below 28pt the labels no longer fit; above 64pt the bar wastes space.
@@ -33,12 +35,13 @@ public struct Preferences: Codable, Equatable {
 
     public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
                 barHeight: Int = Preferences.defaultBarHeight, screenSpace: ScreenSpace = .coverDock,
-                separateWindows: Bool = false) {
+                separateWindows: Bool = false, excludedApps: [String] = []) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
         self.barHeight = Preferences.clampBarHeight(barHeight)
         self.screenSpace = screenSpace
         self.separateWindows = separateWindows
+        self.excludedApps = excludedApps
     }
 
     public init(from decoder: Decoder) throws {
@@ -50,6 +53,7 @@ public struct Preferences: Codable, Equatable {
         // An unknown value (e.g. from a newer version) falls back to the default instead of failing the whole file.
         screenSpace = ((try? c.decodeIfPresent(ScreenSpace.self, forKey: .screenSpace)) ?? nil) ?? .coverDock
         separateWindows = try c.decodeIfPresent(Bool.self, forKey: .separateWindows) ?? false
+        excludedApps = try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? []
     }
 }
 

@@ -69,6 +69,13 @@ struct AppFilterTests {
         #expect(!shows(AppSnapshot(bundleId: me)))
     }
 
+    @Test func excludedAppsNeverShow() {
+        let prefs = Preferences(excludedApps: ["com.spotify.client"])
+        #expect(!shows(AppSnapshot(bundleId: "com.spotify.client"), prefs))
+        #expect(!shows(AppSnapshot(bundleId: "com.spotify.client", isHidden: true), prefs))
+        #expect(shows(AppSnapshot(bundleId: "com.apple.Notes"), prefs))
+    }
+
     @Test func hiddenAppsShowByDefault() {
         #expect(shows(AppSnapshot(bundleId: "com.apple.Notes", isHidden: true)))
     }

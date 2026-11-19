@@ -27,6 +27,15 @@ export interface Preferences {
     screenSpace: ScreenSpace;
     /** One button per window instead of per app. */
     separateWindows: boolean;
+    /** Bundle IDs of apps that never get a button. */
+    excludedApps: string[];
+}
+
+/** An app's name and icon, for apps that may not be running. */
+export interface AppSummary {
+    bundleId: string;
+    name: string;
+    icon: string;
 }
 
 /** Messages from Swift to the page. */
@@ -38,6 +47,8 @@ export type NativeMsg =
           accessibilityTrusted: boolean;
           /** Space the Dock reserves at the bottom of the screen, or 0. */
           dockHeight: number;
+          /** Name and icon for each of `preferences.excludedApps`, in the same order. */
+          excludedAppDetails: AppSummary[];
           barHeightMin: number;
           barHeightMax: number;
       };
@@ -55,6 +66,7 @@ export type UIMsg =
     | { type: 'getSettings' }
     | { type: 'setPreferences'; preferences: Preferences }
     | { type: 'requestAccessibility' }
+    | { type: 'chooseExcludedApp' }
     | { type: 'resizeSettings'; height: number }
     | { type: 'closeSettings' };
 

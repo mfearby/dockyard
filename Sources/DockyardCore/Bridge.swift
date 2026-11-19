@@ -16,6 +16,8 @@ public enum UIMessage: Equatable {
     case getSettings
     case setPreferences(Preferences)
     case requestAccessibility
+    /// Show the menu of apps to add to the "never show" list.
+    case chooseExcludedApp
     case resizeSettings(height: Double)
     case closeSettings
 
@@ -48,12 +50,15 @@ public enum UIMessage: Equatable {
                   // JS numbers arrive as NSNumber and may be fractional, so round rather than require an Int.
                   let height = (p["barHeight"] as? NSNumber)?.doubleValue, height.isFinite,
                   let space = (p["screenSpace"] as? String).flatMap(ScreenSpace.init(rawValue:)),
-                  let separate = p["separateWindows"] as? Bool else { return nil }
+                  let separate = p["separateWindows"] as? Bool,
+                  let excluded = p["excludedApps"] as? [String] else { return nil }
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
                                                barHeight: Int(height.rounded()), screenSpace: space,
-                                               separateWindows: separate))
+                                               separateWindows: separate, excludedApps: excluded))
         case "requestAccessibility":
             self = .requestAccessibility
+        case "chooseExcludedApp":
+            self = .chooseExcludedApp
         case "resizeSettings":
             guard let height = (dict["height"] as? NSNumber)?.doubleValue, height.isFinite else { return nil }
             self = .resizeSettings(height: height)
@@ -145,6 +150,19 @@ public enum WindowLabel {
     }
 }
 
+/// An app's name and icon, for listing apps that may not be running (such as the "never show" list).
+public struct AppSummary: Codable, Equatable {
+    public var bundleId: String
+    public var name: String
+    public var icon: String
+
+    public init(bundleId: String, name: String, icon: String) {
+        self.bundleId = bundleId
+        self.name = name
+        self.icon = icon
+    }
+}
+
 public enum NativeMessage {
     private struct State: Encodable {
         let type = "state"
@@ -157,6 +175,8 @@ public enum NativeMessage {
         let preferences: Preferences
         let accessibilityTrusted: Bool
         let dockHeight: Int
+        /// Name and icon for each entry in `preferences.excludedApps`, in the same order.
+        let excludedAppDetails: [AppSummary]
         let barHeightMin = Preferences.barHeightRange.lowerBound
         let barHeightMax = Preferences.barHeightRange.upperBound
     }
@@ -168,8 +188,10 @@ public enum NativeMessage {
 
     /// JavaScript that delivers the current preferences to the Options window.
     /// `dockHeight` is the space the Dock reserves at the bottom of the screen, or 0 if it reserves none.
-    public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool, dockHeight: Int) -> String {
-        script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight))
+    public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool, dockHeight: Int,
+                                      excludedAppDetails: [AppSummary] = []) -> String {
+        script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight,
+                        excludedAppDetails: excludedAppDetails))
     }
 
     private static func script<T: Encodable>(_ message: T) -> String {

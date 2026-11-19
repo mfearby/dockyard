@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import DockyardCore
+import UniformTypeIdentifiers
 import WebKit
 
 // MARK: - Window classes
@@ -213,8 +214,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     private func iconDataURL(for app: NSRunningApplication, id: String) -> String {
+        iconDataURL(image: app.icon, id: id)
+    }
+
+    private func iconDataURL(image: NSImage?, id: String) -> String {
         if let cached = iconCache[id] { return cached }
-        guard let icon = app.icon else { return "" }
+        guard let icon = image else { return "" }
         let px = 64
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8,
@@ -349,7 +354,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let screen = primaryScreen
         let dock = screen.map { BarLayout.dockHeight(screen: $0.frame, visible: $0.visibleFrame) } ?? 0
         let script = NativeMessage.settingsScript(
-            preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted(), dockHeight: dock)
+            preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted(), dockHeight: dock,
+            excludedAppDetails: config.preferences.excludedApps.map(appSummary))
         settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
@@ -357,6 +363,86 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func windowDidBecomeKey(_ notification: Notification) {
         sendSettings()
         updateWindowManager()
+    }
+
+    // MARK: "Never show" list
+
+    /// Name and icon for an app that may not be running: from the running app if there is one, otherwise from
+    /// its bundle on disk, otherwise just the bundle ID (e.g. an app that has since been deleted).
+    private func appSummary(bundleId: String) -> AppSummary {
+        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first {
+            return AppSummary(bundleId: bundleId, name: app.localizedName ?? bundleId,
+                              icon: iconDataURL(for: app, id: bundleId))
+        }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+            var name = FileManager.default.displayName(atPath: url.path)
+            if name.hasSuffix(".app") { name.removeLast(4) }
+            return AppSummary(bundleId: bundleId, name: name,
+                              icon: iconDataURL(image: NSWorkspace.shared.icon(forFile: url.path), id: bundleId))
+        }
+        return AppSummary(bundleId: bundleId, name: bundleId, icon: "")
+    }
+
+    /// The Add… menu: running apps not already on the list, then a file picker for anything else.
+    private func showExcludedAppMenu() {
+        let excluded = Set(config.preferences.excludedApps)
+        let me = Bundle.main.bundleIdentifier
+        var seen = Set<String>()
+        let apps = NSWorkspace.shared.runningApplications
+            .filter { app in
+                guard app.activationPolicy == .regular, let id = app.bundleIdentifier, id != me,
+                      !excluded.contains(id) else { return false }
+                return seen.insert(id).inserted
+            }
+            .sorted { ($0.localizedName ?? "").localizedCaseInsensitiveCompare($1.localizedName ?? "") == .orderedAscending }
+
+        let menu = NSMenu()
+        for app in apps {
+            let item = NSMenuItem(title: app.localizedName ?? app.bundleIdentifier!,
+                                  action: #selector(excludeAppFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = app.bundleIdentifier
+            if let icon = app.icon?.copy() as? NSImage {
+                icon.size = NSSize(width: 16, height: 16)
+                item.image = icon
+            }
+            menu.addItem(item)
+        }
+        if apps.isEmpty {
+            let none = NSMenuItem(title: "No other apps are running", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            menu.addItem(none)
+        }
+        menu.addItem(.separator())
+        let other = NSMenuItem(title: "Other Application…", action: #selector(chooseOtherAppToExclude), keyEquivalent: "")
+        other.target = self
+        menu.addItem(other)
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func excludeAppFromMenu(_ sender: NSMenuItem) {
+        if let id = sender.representedObject as? String { exclude(id) }
+    }
+
+    @objc private func chooseOtherAppToExclude() {
+        guard let window = settingsWindow else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.prompt = "Add"
+        panel.message = "Choose an app to never show in the taskbar."
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url, let id = Bundle(url: url)?.bundleIdentifier else { return }
+            self?.exclude(id)
+        }
+    }
+
+    private func exclude(_ bundleId: String) {
+        guard bundleId != Bundle.main.bundleIdentifier, !config.preferences.excludedApps.contains(bundleId) else { return }
+        config.preferences.excludedApps.append(bundleId)
+        try? store.save(config)
+        pushState()
+        sendSettings()
     }
 
     /// Sets the Options window's content height, keeping its top edge where it is.
@@ -413,6 +499,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             // Adds Dockyard to the Accessibility list and shows the system prompt.
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
+        case .chooseExcludedApp:
+            showExcludedAppMenu()
         case .resizeSettings(let height):
             resizeSettings(to: height)
         case .closeSettings:

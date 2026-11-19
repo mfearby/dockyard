@@ -25,13 +25,21 @@ struct UIMessageTests {
     @Test func parsesOptionsWindowMessages() {
         #expect(UIMessage(body: ["type": "getSettings"]) == .getSettings)
         #expect(UIMessage(body: ["type": "requestAccessibility"]) == .requestAccessibility)
+        #expect(UIMessage(body: ["type": "chooseExcludedApp"]) == .chooseExcludedApp)
         #expect(UIMessage(body: ["type": "closeSettings"]) == .closeSettings)
     }
 
-    private func setPreferences(height: Any = 40, screenSpace: Any = "coverDock") -> [String: Any] {
+    private func setPreferences(height: Any = 40, screenSpace: Any = "coverDock",
+                                excludedApps: Any = [String]()) -> [String: Any] {
         ["type": "setPreferences",
          "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
-                         "screenSpace": screenSpace, "separateWindows": false]]
+                         "screenSpace": screenSpace, "separateWindows": false, "excludedApps": excludedApps]]
+    }
+
+    @Test func parsesExcludedApps() {
+        #expect(UIMessage(body: setPreferences(excludedApps: ["com.spotify.client"]))
+            == .setPreferences(Preferences(hideHiddenApps: true, excludedApps: ["com.spotify.client"])))
+        #expect(UIMessage(body: setPreferences(excludedApps: "com.spotify.client")) == nil)
     }
 
     @Test func parsesSetPreferences() {
@@ -46,7 +54,8 @@ struct UIMessageTests {
                                                    "hideAppsWithoutWindows": NSNumber(value: true),
                                                    "barHeight": NSNumber(value: 36.0),
                                                    "screenSpace": "coverDock",
-                                                   "separateWindows": NSNumber(value: true)]]
+                                                   "separateWindows": NSNumber(value: true),
+                                                   "excludedApps": [String]()]]
         #expect(UIMessage(body: body)
             == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36,
                                            separateWindows: true)))
@@ -142,8 +151,9 @@ struct NativeMessageTests {
     @Test func settingsHaveTheShapeTheUIExpects() throws {
         let script = NativeMessage.settingsScript(
             preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false, barHeight: 36,
-                                     screenSpace: .moveWindows),
-            accessibilityTrusted: false, dockHeight: 36)
+                                     screenSpace: .moveWindows, excludedApps: ["com.spotify.client"]),
+            accessibilityTrusted: false, dockHeight: 36,
+            excludedAppDetails: [AppSummary(bundleId: "com.spotify.client", name: "Spotify", icon: "data:,")])
         let msg = try payload(script)
         #expect(msg["type"] as? String == "settings")
         #expect(msg["accessibilityTrusted"] as? Bool == false)
@@ -155,6 +165,12 @@ struct NativeMessageTests {
         #expect(prefs["hideAppsWithoutWindows"] as? Bool == false)
         #expect(prefs["barHeight"] as? Int == 36)
         #expect(prefs["screenSpace"] as? String == "moveWindows")
+        #expect(prefs["excludedApps"] as? [String] == ["com.spotify.client"])
+        let details = try #require(msg["excludedAppDetails"] as? [[String: Any]])
+        #expect(details.count == 1)
+        #expect(details[0]["bundleId"] as? String == "com.spotify.client")
+        #expect(details[0]["name"] as? String == "Spotify")
+        #expect(details[0]["icon"] as? String == "data:,")
     }
 
     @Test func namesWithQuotesAndSlashesStaySafe() throws {
