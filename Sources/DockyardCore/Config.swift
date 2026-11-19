@@ -8,6 +8,12 @@ public enum ScreenSpace: String, Codable, Equatable {
     case moveWindows
 }
 
+/// The taskbar's colour scheme.
+public enum Theme: String, Codable, Equatable {
+    case light
+    case dark
+}
+
 /// Options the user can toggle on the Options screen.
 public struct Preferences: Codable, Equatable {
     /// Leave apps hidden with Command-H off the bar.
@@ -24,6 +30,7 @@ public struct Preferences: Codable, Equatable {
     public var separateWindows: Bool
     /// Bundle IDs of apps that never get a button on the bar, in the order the user added them.
     public var excludedApps: [String]
+    public var theme: Theme
 
     public static let defaultBarHeight = 40
     /// Below 28pt the labels no longer fit; above 64pt the bar wastes space.
@@ -35,13 +42,14 @@ public struct Preferences: Codable, Equatable {
 
     public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
                 barHeight: Int = Preferences.defaultBarHeight, screenSpace: ScreenSpace = .coverDock,
-                separateWindows: Bool = false, excludedApps: [String] = []) {
+                separateWindows: Bool = false, excludedApps: [String] = [], theme: Theme = .light) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
         self.barHeight = Preferences.clampBarHeight(barHeight)
         self.screenSpace = screenSpace
         self.separateWindows = separateWindows
         self.excludedApps = excludedApps
+        self.theme = theme
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +62,7 @@ public struct Preferences: Codable, Equatable {
         screenSpace = ((try? c.decodeIfPresent(ScreenSpace.self, forKey: .screenSpace)) ?? nil) ?? .coverDock
         separateWindows = try c.decodeIfPresent(Bool.self, forKey: .separateWindows) ?? false
         excludedApps = try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? []
+        theme = ((try? c.decodeIfPresent(Theme.self, forKey: .theme)) ?? nil) ?? .light
     }
 }
 

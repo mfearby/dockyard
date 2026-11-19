@@ -51,10 +51,11 @@ public enum UIMessage: Equatable {
                   let height = (p["barHeight"] as? NSNumber)?.doubleValue, height.isFinite,
                   let space = (p["screenSpace"] as? String).flatMap(ScreenSpace.init(rawValue:)),
                   let separate = p["separateWindows"] as? Bool,
-                  let excluded = p["excludedApps"] as? [String] else { return nil }
+                  let excluded = p["excludedApps"] as? [String],
+                  let theme = (p["theme"] as? String).flatMap(Theme.init(rawValue:)) else { return nil }
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
                                                barHeight: Int(height.rounded()), screenSpace: space,
-                                               separateWindows: separate, excludedApps: excluded))
+                                               separateWindows: separate, excludedApps: excluded, theme: theme))
         case "requestAccessibility":
             self = .requestAccessibility
         case "chooseExcludedApp":
@@ -172,6 +173,7 @@ public enum NativeMessage {
         let type = "state"
         let apps: [AppEntry]
         let collapsed: Bool
+        let theme: Theme
     }
 
     private struct Settings: Encodable {
@@ -185,9 +187,9 @@ public enum NativeMessage {
         let barHeightMax = Preferences.barHeightRange.upperBound
     }
 
-    /// JavaScript that delivers the current app list, and whether the bar is retracted, to `window.onNative`.
-    public static func stateScript(apps: [AppEntry], collapsed: Bool = false) -> String {
-        script(State(apps: apps, collapsed: collapsed))
+    /// JavaScript that delivers the current app list, whether the bar is retracted, and its theme to `window.onNative`.
+    public static func stateScript(apps: [AppEntry], collapsed: Bool = false, theme: Theme = .light) -> String {
+        script(State(apps: apps, collapsed: collapsed, theme: theme))
     }
 
     /// JavaScript that delivers the current preferences to the Options window.

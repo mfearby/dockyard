@@ -123,4 +123,19 @@ struct ConfigTests {
         try store.save(Config(preferences: Preferences(excludedApps: ["com.spotify.client", "com.apple.Music"])))
         #expect(store.load().preferences.excludedApps == ["com.spotify.client", "com.apple.Music"])
     }
+
+    @Test func themeDefaultsToLight() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"preferences": {}}"#.utf8))
+        #expect(config.preferences.theme == .light)
+    }
+
+    @Test func themeRoundTripsAndUnknownValuesFallBack() throws {
+        let store = makeStore()
+        try store.save(Config(preferences: Preferences(theme: .dark)))
+        #expect(store.load().preferences.theme == .dark)
+        let json = #"{"preferences": {"theme": "neon", "barHeight": 36}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(config.preferences.theme == .light)
+        #expect(config.preferences.barHeight == 36)
+    }
 }

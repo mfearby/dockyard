@@ -1,4 +1,4 @@
-import { onNative, send, type AppSummary, type Preferences, type ScreenSpace } from './bridge.ts';
+import { onNative, send, type AppSummary, type Preferences, type ScreenSpace, type Theme } from './bridge.ts';
 import { canMatchDock, parseBarHeight } from './prefs.ts';
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -6,6 +6,7 @@ const hideHiddenApps = byId<HTMLInputElement>('hideHiddenApps');
 const hideAppsWithoutWindows = byId<HTMLInputElement>('hideAppsWithoutWindows');
 const separateWindows = byId<HTMLInputElement>('separateWindows');
 const screenSpaceRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="screenSpace"]'));
+const themeRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="theme"]'));
 const barHeight = byId<HTMLInputElement>('barHeight');
 const matchDock = byId<HTMLButtonElement>('matchDock');
 const axNote = byId<HTMLDivElement>('axNote');
@@ -28,6 +29,10 @@ function screenSpace(): ScreenSpace {
     return screenSpaceRadios.find((r) => r.checked)?.value === 'moveWindows' ? 'moveWindows' : 'coverDock';
 }
 
+function theme(): Theme {
+    return themeRadios.find((r) => r.checked)?.value === 'dark' ? 'dark' : 'light';
+}
+
 function current(): Preferences {
     return {
         hideHiddenApps: hideHiddenApps.checked,
@@ -36,6 +41,7 @@ function current(): Preferences {
         screenSpace: screenSpace(),
         separateWindows: separateWindows.checked,
         excludedApps: excludedApps.map((a) => a.bundleId),
+        theme: theme(),
     };
 }
 
@@ -61,6 +67,7 @@ onNative((msg) => {
     hideAppsWithoutWindows.checked = msg.preferences.hideAppsWithoutWindows;
     separateWindows.checked = msg.preferences.separateWindows;
     for (const radio of screenSpaceRadios) radio.checked = radio.value === msg.preferences.screenSpace;
+    for (const radio of themeRadios) radio.checked = radio.value === msg.preferences.theme;
     accessibilityTrusted = msg.accessibilityTrusted;
     dockHeight = msg.dockHeight;
     min = msg.barHeightMin;
@@ -122,7 +129,7 @@ excludedList.addEventListener('keydown', (e) => {
 });
 byId('addExcluded').addEventListener('click', () => send({ type: 'chooseExcludedApp' }));
 
-for (const input of [hideHiddenApps, hideAppsWithoutWindows, separateWindows, ...screenSpaceRadios]) {
+for (const input of [hideHiddenApps, hideAppsWithoutWindows, separateWindows, ...screenSpaceRadios, ...themeRadios]) {
     input.addEventListener('change', () => {
         updateNotes();
         save();

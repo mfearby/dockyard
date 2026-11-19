@@ -62,6 +62,7 @@ new ResizeObserver(sendTooltips).observe(tasksEl);
 
 onNative((msg) => {
     if (msg.type !== 'state') return;
+    document.body.classList.toggle('dark', msg.theme === 'dark');
     setCollapsed(msg.collapsed);
     if (dragging) { pending = msg.apps; return; }
     apps = msg.apps;

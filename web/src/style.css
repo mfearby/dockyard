@@ -3,14 +3,29 @@
   --button-h: calc(100vh - 10px);
   --inset-h: calc(100vh - 12px);
   --icon: clamp(14px, calc(100vh - 20px), 32px);
+  /* Light theme. --hi/--lo/--dark are the bevel's highlight, inner shadow and outer shadow; --text is used
+     for labels and glyphs (hamburger, toggle arrow); --mesh-* are the two colours of the active button's dither. */
   --face: #c0c0c0;
   --hi: #ffffff;
   --lo: #808080;
   --dark: #000000;
+  --text: #000000;
+  --mesh-a: #c0c0c0;
+  --mesh-b: #ffffff;
+}
+/* Dark theme: very dark grey faces, white text and glyphs, and a bevel scaled down to match. */
+body.dark {
+  --face: #2b2b2b;
+  --hi: #5a5a5a;
+  --lo: #161616;
+  --dark: #000000;
+  --text: #ffffff;
+  --mesh-a: #2b2b2b;
+  --mesh-b: #4c4c4c;
 }
 * { box-sizing: border-box; user-select: none; -webkit-user-select: none; cursor: default; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
-  font: 12px -apple-system, "Helvetica Neue", sans-serif; color: var(--dark); }
+  font: 12px -apple-system, "Helvetica Neue", sans-serif; color: var(--text); }
 #bar { display: flex; align-items: center; height: 100%; padding: 3px 2px 2px;
   border-top: 2px solid var(--hi); gap: 4px; }
 .sep { width: 2px; height: var(--inset-h); border-left: 1px solid var(--lo); border-right: 1px solid var(--hi); }
@@ -23,11 +38,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
 }
 /* Square menu button with a three-line "hamburger" icon, drawn as one bar plus two shadow copies. */
 #start { flex: none; width: var(--button-h); padding: 0; justify-content: center; }
-.burger { width: 14px; height: 2px; background: var(--dark); box-shadow: 0 -4px var(--dark), 0 4px var(--dark); }
+.burger { width: 14px; height: 2px; background: var(--text); box-shadow: 0 -4px var(--text), 0 4px var(--text); }
 .task.active, #start:active {
   box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark),
               inset -2px -2px var(--face), inset 2px 2px var(--lo);
-  background: repeating-conic-gradient(#c0c0c0 0% 25%, #fff 0% 50%) 0 0 / 2px 2px;
+  background: repeating-conic-gradient(var(--mesh-a) 0% 25%, var(--mesh-b) 0% 50%) 0 0 / 2px 2px;
   font-weight: 600;
 }
 #tasks { display: flex; gap: 2px; flex: 1; min-width: 0; position: relative; overflow: hidden; }
@@ -50,10 +65,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
                              inset -2px -2px var(--face), inset 2px 2px var(--lo); }
 #toggle::after { content: ""; display: block; margin: 0 auto; width: 0; height: 0;
   border-top: 4px solid transparent; border-bottom: 4px solid transparent;
-  border-left: 4px solid var(--dark); }
+  border-left: 4px solid var(--text); }
 
 /* Retracted: the window is BarLayout.collapsedWidth (18pt) wide and shows only the toggle. The 4px left
    padding matches the gap before the toggle on the full bar, so the button stays in the same place. */
 body.collapsed #bar { padding: 3px 2px 2px 4px; }
 body.collapsed #bar > :not(#toggle) { display: none; }
-body.collapsed #toggle::after { border-left: 0; border-right: 4px solid var(--dark); }
+body.collapsed #toggle::after { border-left: 0; border-right: 4px solid var(--text); }

@@ -21,6 +21,8 @@ export interface AppInfo {
  */
 export type ScreenSpace = 'coverDock' | 'moveWindows';
 
+export type Theme = 'light' | 'dark';
+
 export interface Preferences {
     hideHiddenApps: boolean;
     hideAppsWithoutWindows: boolean;
@@ -31,6 +33,7 @@ export interface Preferences {
     separateWindows: boolean;
     /** Bundle IDs of apps that never get a button. */
     excludedApps: string[];
+    theme: Theme;
 }
 
 /** An app's name and icon, for apps that may not be running. */
@@ -42,7 +45,7 @@ export interface AppSummary {
 
 /** Messages from Swift to the page. */
 export type NativeMsg =
-    | { type: 'state'; apps: AppInfo[]; collapsed: boolean }
+    | { type: 'state'; apps: AppInfo[]; collapsed: boolean; theme: Theme }
     | {
           type: 'settings';
           preferences: Preferences;

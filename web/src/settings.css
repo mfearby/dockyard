@@ -33,6 +33,7 @@ button:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); }
 .buttons { display: flex; justify-content: flex-end; }
 
 .row { display: flex; align-items: center; gap: 6px; }
+.row .radio + .radio { margin-left: 16px; }
 .row.height { margin-top: 4px; }
 #dockNote { margin-left: 4px; }
 input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; font: inherit; background: var(--hi);

@@ -30,10 +30,16 @@ struct UIMessageTests {
     }
 
     private func setPreferences(height: Any = 40, screenSpace: Any = "coverDock",
-                                excludedApps: Any = [String]()) -> [String: Any] {
+                                excludedApps: Any = [String](), theme: Any = "light") -> [String: Any] {
         ["type": "setPreferences",
          "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
-                         "screenSpace": screenSpace, "separateWindows": false, "excludedApps": excludedApps]]
+                         "screenSpace": screenSpace, "separateWindows": false, "excludedApps": excludedApps,
+                         "theme": theme]]
+    }
+
+    @Test func parsesTheme() {
+        #expect(UIMessage(body: setPreferences(theme: "dark")) == .setPreferences(Preferences(hideHiddenApps: true, theme: .dark)))
+        #expect(UIMessage(body: setPreferences(theme: "purple")) == nil)
     }
 
     @Test func parsesExcludedApps() {
@@ -55,7 +61,8 @@ struct UIMessageTests {
                                                    "barHeight": NSNumber(value: 36.0),
                                                    "screenSpace": "coverDock",
                                                    "separateWindows": NSNumber(value: true),
-                                                   "excludedApps": [String]()]]
+                                                   "excludedApps": [String](),
+                                                   "theme": "light"]]
         #expect(UIMessage(body: body)
             == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36,
                                            separateWindows: true)))
@@ -135,9 +142,10 @@ struct NativeMessageTests {
 
     @Test func stateHasTheShapeTheUIExpects() throws {
         let entry = AppEntry(bundleId: "com.apple.Notes", name: "Notes", icon: "data:image/png;base64,AA==", active: true)
-        let msg = try payload(NativeMessage.stateScript(apps: [entry], collapsed: true))
+        let msg = try payload(NativeMessage.stateScript(apps: [entry], collapsed: true, theme: .dark))
         #expect(msg["type"] as? String == "state")
         #expect(msg["collapsed"] as? Bool == true)
+        #expect(msg["theme"] as? String == "dark")
         let apps = try #require(msg["apps"] as? [[String: Any]])
         #expect(apps.count == 1)
         #expect(apps[0]["id"] as? String == "com.apple.Notes")

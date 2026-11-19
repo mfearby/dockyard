@@ -335,7 +335,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let apps = entries()
         guard force || apps != lastSent else { return }
         lastSent = apps
-        webView.evaluateJavaScript(NativeMessage.stateScript(apps: apps, collapsed: config.collapsed), completionHandler: nil)
+        webView.evaluateJavaScript(
+            NativeMessage.stateScript(apps: apps, collapsed: config.collapsed, theme: config.preferences.theme),
+            completionHandler: nil)
     }
 
     private func activate(buttonID: String) {
@@ -520,7 +522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             positionPanel()
             updateWindowTimer()
             updateWindowManager()
-            pushState()
+            pushState(force: true)  // the theme may have changed even if the buttons haven't
             sendSettings()
         case .requestAccessibility:
             // Adds Dockyard to the Accessibility list and shows the system prompt.
