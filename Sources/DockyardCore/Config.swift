@@ -1,5 +1,13 @@
 import Foundation
 
+/// How the taskbar avoids covering windows, given macOS won't let apps reserve screen space.
+public enum ScreenSpace: String, Codable, Equatable {
+    /// The Dock stays visible along the bottom, so macOS keeps windows above it, and the bar covers the Dock.
+    case coverDock
+    /// Dockyard moves and resizes other apps' windows (via Accessibility) so they stay above the bar.
+    case moveWindows
+}
+
 /// Options the user can toggle on the Options screen.
 public struct Preferences: Codable, Equatable {
     /// Leave apps hidden with Command-H off the bar.
@@ -11,6 +19,8 @@ public struct Preferences: Codable, Equatable {
         didSet { barHeight = Preferences.clampBarHeight(barHeight) }
     }
 
+    public var screenSpace: ScreenSpace
+
     public static let defaultBarHeight = 40
     /// Below 28pt the labels no longer fit; above 64pt the bar wastes space.
     public static let barHeightRange = 28...64
@@ -20,10 +30,11 @@ public struct Preferences: Codable, Equatable {
     }
 
     public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
-                barHeight: Int = Preferences.defaultBarHeight) {
+                barHeight: Int = Preferences.defaultBarHeight, screenSpace: ScreenSpace = .coverDock) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
         self.barHeight = Preferences.clampBarHeight(barHeight)
+        self.screenSpace = screenSpace
     }
 
     public init(from decoder: Decoder) throws {
@@ -32,6 +43,8 @@ public struct Preferences: Codable, Equatable {
         hideAppsWithoutWindows = try c.decodeIfPresent(Bool.self, forKey: .hideAppsWithoutWindows) ?? false
         barHeight = Preferences.clampBarHeight(
             try c.decodeIfPresent(Int.self, forKey: .barHeight) ?? Preferences.defaultBarHeight)
+        // An unknown value (e.g. from a newer version) falls back to the default instead of failing the whole file.
+        screenSpace = ((try? c.decodeIfPresent(ScreenSpace.self, forKey: .screenSpace)) ?? nil) ?? .coverDock
     }
 }
 

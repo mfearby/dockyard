@@ -13,6 +13,7 @@ public enum UIMessage: Equatable {
     case getSettings
     case setPreferences(Preferences)
     case requestAccessibility
+    case resizeSettings(height: Double)
     case closeSettings
 
     /// Parses a message body as WebKit delivers it (a JS object becomes `[String: Any]`). Returns nil for anything malformed.
@@ -39,11 +40,15 @@ public enum UIMessage: Equatable {
                   let hideHidden = p["hideHiddenApps"] as? Bool,
                   let hideWindowless = p["hideAppsWithoutWindows"] as? Bool,
                   // JS numbers arrive as NSNumber and may be fractional, so round rather than require an Int.
-                  let height = (p["barHeight"] as? NSNumber)?.doubleValue, height.isFinite else { return nil }
+                  let height = (p["barHeight"] as? NSNumber)?.doubleValue, height.isFinite,
+                  let space = (p["screenSpace"] as? String).flatMap(ScreenSpace.init(rawValue:)) else { return nil }
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
-                                               barHeight: Int(height.rounded())))
+                                               barHeight: Int(height.rounded()), screenSpace: space))
         case "requestAccessibility":
             self = .requestAccessibility
+        case "resizeSettings":
+            guard let height = (dict["height"] as? NSNumber)?.doubleValue, height.isFinite else { return nil }
+            self = .resizeSettings(height: height)
         case "closeSettings":
             self = .closeSettings
         default:

@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var iconCache: [String: String] = [:]
     private var lastSent: [AppEntry]?
     private var windowTimer: Timer?
+    private lazy var windowManager = WindowManager { [weak self] in self?.fittingArea() }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         webDir = findWebDir()
@@ -88,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         load("index.html", into: webView)
         observe()
         updateWindowTimer()
+        updateWindowManager()
     }
 
     // MARK: Layout
@@ -101,6 +103,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard let screen = primaryScreen else { return }
         let height = CGFloat(config.preferences.barHeight)
         panel.setFrame(BarLayout.frame(screen: screen.frame, height: height, collapsed: config.collapsed), display: true)
+    }
+
+    // MARK: Window management
+
+    /// Where other apps' windows must stay, or nil when Dockyard shouldn't move them:
+    /// in "cover the Dock" mode, or while the bar is retracted and isn't covering anything.
+    private func fittingArea() -> WindowFitting.Area? {
+        guard config.preferences.screenSpace == .moveWindows, !config.collapsed, let screen = primaryScreen else { return nil }
+        return WindowFitting.area(screen: screen.frame, visible: screen.visibleFrame,
+                                  barHeight: CGFloat(config.preferences.barHeight))
+    }
+
+    /// Starts or stops window management to match the current settings, then refits existing windows,
+    /// since the bar may have changed height or come back from being retracted.
+    private func updateWindowManager() {
+        if config.preferences.screenSpace == .moveWindows && AXIsProcessTrusted() {
+            if windowManager.isRunning { windowManager.fitAll() } else { windowManager.start() }
+        } else {
+            windowManager.stop()
+        }
     }
 
     // MARK: Web content
@@ -149,7 +171,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main) { [weak self] _ in self?.positionPanel() }
+            object: nil, queue: .main) { [weak self] _ in
+                self?.positionPanel()
+                self?.updateWindowManager()
+            }
     }
 
     /// Windows opening and closing don't post workspace notifications, so poll while that preference is on.
@@ -218,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if settingsWindow == nil {
             let view = makeWebView(WKWebView.self)
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 420, height: 330),
+                contentRect: NSRect(x: 0, y: 0, width: 440, height: 480),  // the page resizes it to fit
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false)
@@ -248,6 +273,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     /// Refresh when Options comes back to the front, e.g. after granting Accessibility access in System Settings.
     func windowDidBecomeKey(_ notification: Notification) {
         sendSettings()
+        updateWindowManager()
+    }
+
+    /// Sets the Options window's content height, keeping its top edge where it is.
+    private func resizeSettings(to height: Double) {
+        guard let window = settingsWindow else { return }
+        let content = window.contentRect(forFrameRect: window.frame)
+        let h = CGFloat(min(max(height, 120), 900))
+        guard abs(content.height - h) >= 1 else { return }
+        let newContent = NSRect(x: content.minX, y: content.maxY - h, width: content.width, height: h)
+        window.setFrame(window.frameRect(forContentRect: newContent), display: true)
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -275,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             config.collapsed = collapsed
             try? store.save(config)
             positionPanel()
+            updateWindowManager()
             pushState(force: true)
         case .menu:
             showStartMenu()
@@ -285,12 +322,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             try? store.save(config)
             positionPanel()
             updateWindowTimer()
+            updateWindowManager()
             pushState()
             sendSettings()
         case .requestAccessibility:
             // Adds Dockyard to the Accessibility list and shows the system prompt.
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
+        case .resizeSettings(let height):
+            resizeSettings(to: height)
         case .closeSettings:
             settingsWindow?.close()
         }

@@ -5,33 +5,36 @@
     --dark: #000000;
 }
 * { box-sizing: border-box; user-select: none; -webkit-user-select: none; cursor: default; }
-html, body { margin: 0; height: 100%; background: var(--face); color: var(--dark);
+html { height: 100%; background: var(--face); }
+/* The body isn't stretched to the window: its height is measured and the window is resized to fit it. */
+body { margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--dark);
     font: 12px -apple-system, "Helvetica Neue", sans-serif; }
-body { display: flex; flex-direction: column; padding: 12px; gap: 12px; }
 
 fieldset { margin: 0; padding: 10px 12px 12px; border: 0;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--hi), inset -2px -2px var(--lo); }
 legend { padding: 0 4px; }
 
-.check { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-.check input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; flex: none;
+.check, .radio { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.check input, .radio input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; flex: none;
     background: var(--hi); position: relative;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
 .check input:checked::after { content: "✓"; position: absolute; inset: 0; font: bold 11px/13px sans-serif;
     text-align: center; }
+.radio input { border-radius: 50%; }
+.radio input:checked::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--dark); }
 
-.note { margin: 6px 0 0 21px; color: #333; }
+.note { margin: 2px 0 8px 21px; color: #333; }
 .note p { margin: 0 0 6px; line-height: 1.4; }
 
 button { background: var(--face); border: 0; font: inherit; color: inherit; min-width: 76px; height: 24px; padding: 0 10px;
     box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--lo), inset 2px 2px var(--face); }
 button:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark), inset -2px -2px var(--face), inset 2px 2px var(--lo); }
-.buttons { display: flex; justify-content: flex-end; margin-top: auto; }
+button:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); }
+.buttons { display: flex; justify-content: flex-end; }
 
 .row { display: flex; align-items: center; gap: 6px; }
+.row.height { margin-top: 4px; }
+#dockNote { margin-left: 4px; }
 input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; font: inherit; background: var(--hi);
     user-select: text; -webkit-user-select: text; cursor: text;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
-.row button { margin-left: 8px; }
-button:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); }
-#dockNote { margin-left: 0; margin-top: 6px; }

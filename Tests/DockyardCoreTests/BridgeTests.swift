@@ -28,9 +28,10 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "closeSettings"]) == .closeSettings)
     }
 
-    private func setPreferences(height: Any) -> [String: Any] {
+    private func setPreferences(height: Any = 40, screenSpace: Any = "coverDock") -> [String: Any] {
         ["type": "setPreferences",
-         "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height]]
+         "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
+                         "screenSpace": screenSpace]]
     }
 
     @Test func parsesSetPreferences() {
@@ -43,7 +44,8 @@ struct UIMessageTests {
         let body: [String: Any] = ["type": "setPreferences",
                                    "preferences": ["hideHiddenApps": NSNumber(value: false),
                                                    "hideAppsWithoutWindows": NSNumber(value: true),
-                                                   "barHeight": NSNumber(value: 36.0)]]
+                                                   "barHeight": NSNumber(value: 36.0),
+                                                   "screenSpace": "coverDock"]]
         #expect(UIMessage(body: body)
             == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36)))
     }
@@ -52,6 +54,16 @@ struct UIMessageTests {
         #expect(UIMessage(body: setPreferences(height: 36.6)) == .setPreferences(Preferences(hideHiddenApps: true, barHeight: 37)))
         #expect(UIMessage(body: setPreferences(height: 5)) == .setPreferences(Preferences(hideHiddenApps: true, barHeight: 28)))
         #expect(UIMessage(body: setPreferences(height: 999)) == .setPreferences(Preferences(hideHiddenApps: true, barHeight: 64)))
+    }
+
+    @Test func parsesScreenSpace() {
+        #expect(UIMessage(body: setPreferences(screenSpace: "moveWindows"))
+            == .setPreferences(Preferences(hideHiddenApps: true, screenSpace: .moveWindows)))
+    }
+
+    @Test func parsesResizeSettings() {
+        #expect(UIMessage(body: ["type": "resizeSettings", "height": 412]) == .resizeSettings(height: 412))
+        #expect(UIMessage(body: ["type": "resizeSettings"]) == nil)
     }
 
     @Test func rejectsMalformedMessages() {
@@ -67,6 +79,8 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "setPreferences", "preferences": ["hideHiddenApps": true]]) == nil)
         #expect(UIMessage(body: setPreferences(height: "36")) == nil)
         #expect(UIMessage(body: setPreferences(height: Double.nan)) == nil)
+        #expect(UIMessage(body: setPreferences(screenSpace: "somethingElse")) == nil)
+        #expect(UIMessage(body: setPreferences(screenSpace: 1)) == nil)
     }
 }
 
@@ -94,7 +108,8 @@ struct NativeMessageTests {
 
     @Test func settingsHaveTheShapeTheUIExpects() throws {
         let script = NativeMessage.settingsScript(
-            preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false, barHeight: 36),
+            preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false, barHeight: 36,
+                                     screenSpace: .moveWindows),
             accessibilityTrusted: false, dockHeight: 36)
         let msg = try payload(script)
         #expect(msg["type"] as? String == "settings")
@@ -106,6 +121,7 @@ struct NativeMessageTests {
         #expect(prefs["hideHiddenApps"] as? Bool == true)
         #expect(prefs["hideAppsWithoutWindows"] as? Bool == false)
         #expect(prefs["barHeight"] as? Int == 36)
+        #expect(prefs["screenSpace"] as? String == "moveWindows")
     }
 
     @Test func namesWithQuotesAndSlashesStaySafe() throws {

@@ -7,11 +7,19 @@ export interface AppInfo {
     active: boolean;
 }
 
+/**
+ * How the taskbar avoids covering windows:
+ * - coverDock: the Dock stays visible at the bottom, so macOS keeps windows above it, and the bar covers it.
+ * - moveWindows: Dockyard moves and resizes windows so they stay above the bar.
+ */
+export type ScreenSpace = 'coverDock' | 'moveWindows';
+
 export interface Preferences {
     hideHiddenApps: boolean;
     hideAppsWithoutWindows: boolean;
     /** Bar height in points. */
     barHeight: number;
+    screenSpace: ScreenSpace;
 }
 
 /** Messages from Swift to the page. */
@@ -37,6 +45,7 @@ export type UIMsg =
     | { type: 'getSettings' }
     | { type: 'setPreferences'; preferences: Preferences }
     | { type: 'requestAccessibility' }
+    | { type: 'resizeSettings'; height: number }
     | { type: 'closeSettings' };
 
 declare global {

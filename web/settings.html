@@ -20,18 +20,44 @@
                     Without Accessibility access, Dockyard can only see windows that are on screen,
                     so apps whose windows are all minimised are left off the bar too.
                 </p>
-                <button id="grantAx">Grant Access…</button>
+                <button class="grantAx">Grant Access…</button>
             </div>
         </fieldset>
         <fieldset>
-            <legend>Size</legend>
-            <div class="row">
+            <legend>Screen space</legend>
+            <label class="radio">
+                <input type="radio" name="screenSpace" value="coverDock" />
+                <span>Cover the Dock</span>
+            </label>
+            <div class="note">
+                <p>
+                    Keep the Dock visible along the bottom of the screen. macOS keeps windows above it,
+                    and the taskbar sits on top of it.
+                </p>
+                <div class="row">
+                    <button id="matchDock">Match Dock</button>
+                    <span id="dockNote"></span>
+                </div>
+            </div>
+            <label class="radio">
+                <input type="radio" name="screenSpace" value="moveWindows" />
+                <span>Keep windows above the taskbar</span>
+            </label>
+            <div class="note">
+                <p>
+                    Dockyard moves and resizes windows that would go under the taskbar. Works best with
+                    the Dock hidden or on a side of the screen.
+                </p>
+                <div id="moveAxNote" hidden>
+                    <p>This needs Accessibility access.</p>
+                    <button class="grantAx">Grant Access…</button>
+                </div>
+            </div>
+            <div class="row height">
                 <label for="barHeight">Taskbar height:</label>
                 <input type="number" id="barHeight" step="1" />
                 <span>pt</span>
-                <button id="matchDock">Match Dock</button>
             </div>
-            <div id="dockNote" class="note"></div>
         </fieldset>
         <div class="buttons">
             <button id="close">Close</button>
