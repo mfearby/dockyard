@@ -398,7 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .setTooltips(let targets):
             tooltips.setTargets(targets)
         case .menu:
-            showStartMenu()
+            showMenu()
         case .getSettings:
             sendSettings()
         case .setPreferences(let prefs):
@@ -420,7 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
-    private func showStartMenu() {
+    private func showMenu() {
         let menu = NSMenu()
         let options = NSMenuItem(title: "Options…", action: #selector(openSettings), keyEquivalent: "")
         options.target = self

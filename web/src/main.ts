@@ -112,16 +112,11 @@ document.getElementById('start')!.addEventListener('click', () => send({ type: '
 
 toggleEl.addEventListener('click', () => {
     // When retracting, hide the buttons before Swift shrinks the window, so the narrow strip never
-    // shows a sliver of the Start button. When expanding, wait for Swift to widen the window first;
+    // shows a sliver of the menu button. When expanding, wait for Swift to widen the window first;
     // the state message it sends back removes the class.
     const next = !collapsed;
     if (next) setCollapsed(true);
     send({ type: 'setCollapsed', collapsed: next });
 });
-
-const clock = document.getElementById('clock')!;
-const tick = () => { clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
-tick();
-setInterval(tick, 10_000);
 
 send({ type: 'ready' });

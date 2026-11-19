@@ -179,8 +179,9 @@ public enum NativeMessage {
 }
 
 public enum BarLayout {
-    /// Width of the retracted bar, which shows only the toggle button. Must match `body.collapsed` in web/src/style.css.
-    public static let collapsedWidth: CGFloat = 16
+    /// Width of the retracted bar, which shows only the toggle button: 4pt gap + 12pt button + 2pt edge, the same
+    /// as the toggle's area on the full bar, so the button doesn't move. Must match `body.collapsed` in web/src/style.css.
+    public static let collapsedWidth: CGFloat = 18
 
     /// The bar's frame along the bottom edge of the screen (AppKit's origin is bottom-left): full width,
     /// or when collapsed, a thin strip in the bottom-right corner so the Dock and screen edge are uncovered.
