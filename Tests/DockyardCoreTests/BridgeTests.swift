@@ -107,13 +107,11 @@ struct ButtonIDTests {
 struct WindowLabelTests {
     @Test func usesTheWindowTitle() {
         #expect(WindowLabel.name(title: "dockyard \u{2013} main.swift", appName: "IntelliJ IDEA") == "dockyard \u{2013} main.swift")
-        #expect(WindowLabel.tooltip(title: "dockyard", appName: "IntelliJ IDEA") == "IntelliJ IDEA \u{2013} dockyard")
     }
 
     @Test func untitledWindowsUseTheAppName() {
         #expect(WindowLabel.name(title: nil, appName: "Notes") == "Notes")
         #expect(WindowLabel.name(title: "   ", appName: "Notes") == "Notes")
-        #expect(WindowLabel.tooltip(title: "", appName: "Notes") == "Notes")
     }
 }
 

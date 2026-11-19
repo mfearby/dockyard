@@ -9,6 +9,8 @@ public enum UIMessage: Equatable {
     case activate(id: String)
     case setOrder([String])
     case setCollapsed(Bool)
+    /// Where the bar's tooltip targets are, sent whenever the buttons change or move.
+    case setTooltips([TooltipTarget])
     case menu
     // From the Options window
     case getSettings
@@ -34,6 +36,9 @@ public enum UIMessage: Equatable {
         case "setCollapsed":
             guard let collapsed = dict["collapsed"] as? Bool else { return nil }
             self = .setCollapsed(collapsed)
+        case "setTooltips":
+            guard let items = dict["tooltips"] as? [Any] else { return nil }
+            self = .setTooltips(items.compactMap(TooltipTarget.init(body:)))
         case "getSettings":
             self = .getSettings
         case "setPreferences":
@@ -57,6 +62,43 @@ public enum UIMessage: Equatable {
         default:
             return nil
         }
+    }
+}
+
+/// An element on the bar that shows a tooltip on hover, in the bar's coordinates (points from its left edge).
+public struct TooltipTarget: Equatable {
+    public var id: String
+    public var text: String
+    public var left: Double
+    public var width: Double
+
+    public init(id: String, text: String, left: Double, width: Double) {
+        self.id = id
+        self.text = text
+        self.left = left
+        self.width = width
+    }
+
+    /// Parses one entry as WebKit delivers it; nil if malformed, so one bad entry doesn't drop the rest.
+    init?(body: Any) {
+        guard let dict = body as? [String: Any],
+              let id = dict["id"] as? String, let text = dict["text"] as? String,
+              let left = (dict["left"] as? NSNumber)?.doubleValue, left.isFinite,
+              let width = (dict["width"] as? NSNumber)?.doubleValue, width.isFinite else { return nil }
+        self.init(id: id, text: text, left: left, width: width)
+    }
+
+    /// The target under `x`, ignoring hidden (zero-width) elements and empty text.
+    public static func hit(_ x: Double, in targets: [TooltipTarget]) -> TooltipTarget? {
+        targets.first { $0.width > 0 && !$0.text.isEmpty && x >= $0.left && x < $0.left + $0.width }
+    }
+
+    /// Where to put a tooltip of `size`: just above the bar, its left edge lined up with the target's
+    /// (`targetLeft`, in screen coordinates), and kept within the screen. AppKit coordinates (origin bottom-left).
+    public static func frame(size: CGSize, targetLeft: CGFloat, barTop: CGFloat, screen: CGRect) -> CGRect {
+        let margin: CGFloat = 2
+        let x = min(max(targetLeft, screen.minX + margin), screen.maxX - size.width - margin)
+        return CGRect(x: x, y: barTop + margin, width: size.width, height: size.height)
     }
 }
 
@@ -100,12 +142,6 @@ public enum WindowLabel {
     public static func name(title: String?, appName: String) -> String {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? appName : trimmed
-    }
-
-    /// A window button's tooltip, e.g. "IntelliJ IDEA – dockyard".
-    public static func tooltip(title: String?, appName: String) -> String {
-        let label = name(title: title, appName: appName)
-        return label == appName ? appName : "\(appName) \u{2013} \(label)"
     }
 }
 

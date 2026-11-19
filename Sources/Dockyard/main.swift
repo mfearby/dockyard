@@ -74,6 +74,7 @@ enum AXWindows {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler {
     private var panel: BarPanel!
     private var webView: BarWebView!
+    private var tooltips: TooltipController!
     private var settingsWindow: NSWindow?
     private var settingsWebView: WKWebView?
     /// The app that was frontmost before Options opened, so focus can go back to it on close.
@@ -102,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.contentView = webView
+        tooltips = TooltipController(view: webView)
         positionPanel()
         panel.orderFrontRegardless()
 
@@ -289,9 +291,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let focused = isFront ? AXWindows.focused(pid: app.processIdentifier) : nil
             return windowRegistry.update(pid: app.processIdentifier, keys: list.map(\.key)).map { window in
                 let title = titles[window.key] ?? nil
+                // The tooltip repeats the full label, which the button may have cut short.
                 return AppEntry(id: ButtonID.window(id, serial: window.serial), bundleId: id,
                                 name: WindowLabel.name(title: title, appName: name),
-                                title: WindowLabel.tooltip(title: title, appName: name),
                                 icon: icon, active: window.key == focused)
             }
         }
@@ -393,6 +395,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             positionPanel()
             updateWindowManager()
             pushState(force: true)
+        case .setTooltips(let targets):
+            tooltips.setTargets(targets)
         case .menu:
             showStartMenu()
         case .getSettings:

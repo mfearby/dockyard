@@ -10,7 +10,21 @@ let collapsed = false;
 function setCollapsed(value: boolean) {
     collapsed = value;
     document.body.classList.toggle('collapsed', value);
-    toggleEl.title = value ? 'Show taskbar' : 'Hide taskbar';
+    toggleEl.dataset.tip = value ? 'Show taskbar' : 'Hide taskbar';
+    sendTooltips();
+}
+
+// Tooltip text lives in data-tip, not title: macOS never shows title tooltips for the bar (Dockyard isn't
+// the active app), so Swift draws them instead, using the positions sent here.
+function sendTooltips() {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('[data-tip]'));
+    send({
+        type: 'setTooltips',
+        tooltips: els.map((el, i) => {
+            const r = el.getBoundingClientRect();
+            return { id: el.dataset.id ?? el.id ?? String(i), text: el.dataset.tip ?? '', left: r.left, width: r.width };
+        }),
+    });
 }
 
 let apps: AppInfo[] = [];
@@ -22,7 +36,7 @@ function render() {
         const el = document.createElement('div');
         el.className = 'task' + (a.active ? ' active' : '');
         el.dataset.id = a.id;
-        el.title = a.title;
+        el.dataset.tip = a.title;
         const img = document.createElement('img');
         img.src = a.icon;
         const label = document.createElement('span');
@@ -30,7 +44,11 @@ function render() {
         el.append(img, label);
         return el;
     }));
+    sendTooltips();
 }
+
+// Buttons shrink and grow with the window, e.g. when the bar is retracted or the screen changes.
+new ResizeObserver(sendTooltips).observe(tasksEl);
 
 onNative((msg) => {
     if (msg.type !== 'state') return;

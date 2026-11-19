@@ -50,6 +50,8 @@ export type UIMsg =
     /** `order` lists button IDs left to right. */
     | { type: 'setOrder'; order: string[] }
     | { type: 'setCollapsed'; collapsed: boolean }
+    /** Elements that show a tooltip on hover; positions in CSS px (points) from the bar's left edge. */
+    | { type: 'setTooltips'; tooltips: { id: string; text: string; left: number; width: number }[] }
     | { type: 'getSettings' }
     | { type: 'setPreferences'; preferences: Preferences }
     | { type: 'requestAccessibility' }
