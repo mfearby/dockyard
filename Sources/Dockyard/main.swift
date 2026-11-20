@@ -575,10 +575,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         options.target = self
         menu.addItem(options)
         menu.addItem(.separator())
+
+        // The same places the Dock offers: the Downloads stack, the Bin and Finder.
+        let fm = FileManager.default
+        let downloads = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        let finder = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder")
+        addMenuItem(to: menu, title: "Downloads", action: #selector(openDownloads),
+                    icon: downloads.map { NSWorkspace.shared.icon(forFile: $0.path) })
+        addMenuItem(to: menu, title: "Bin", action: #selector(openBin), icon: NSImage(named: NSImage.trashEmptyName))
+        addMenuItem(to: menu, title: "Finder", action: #selector(openFinder),
+                    icon: finder.map { NSWorkspace.shared.icon(forFile: $0.path) })
+        menu.addItem(.separator())
+
         let quit = NSMenuItem(title: "Quit Dockyard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         quit.target = NSApp
         menu.addItem(quit)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func addMenuItem(to menu: NSMenu, title: String, action: Selector, icon: NSImage?) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        if let icon = icon?.copy() as? NSImage {
+            icon.size = NSSize(width: 16, height: 16)
+            item.image = icon
+        }
+        menu.addItem(item)
+    }
+
+    /// Opens the Downloads folder in Finder, as clicking it in the Dock does when it's shown as a folder.
+    @objc private func openDownloads() {
+        if let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Opens the Bin in a Finder window, like the Dock's Bin icon.
+    @objc private func openBin() {
+        if let url = try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask,
+                                                   appropriateFor: nil, create: false) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Brings Finder to the front. Like clicking it in the Dock, this sends a "reopen" event, so Finder opens
+    /// a new window if none are open.
+    @objc private func openFinder() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder") else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration, completionHandler: nil)
     }
 }
 
