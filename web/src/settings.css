@@ -40,8 +40,8 @@ input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; fon
     user-select: text; -webkit-user-select: text; cursor: text;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
 
-/* Win95-style list box: sunken white well, navy selection. Shows about four rows before scrolling. */
-.listbox { height: 88px; overflow-y: auto; background: var(--hi); padding: 2px; outline: none;
+/* Win95-style list box: sunken white well, navy selection. Shows three rows before scrolling. */
+.listbox { height: 68px; overflow-y: auto; background: var(--hi); padding: 2px; outline: none;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
 .listbox .item { display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 4px; }
 .listbox .item img { width: 16px; height: 16px; flex: none; }

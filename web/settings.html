@@ -39,11 +39,23 @@
             </div>
         </fieldset>
         <fieldset>
+            <legend>Quick Launch</legend>
+            <div class="applist" data-list="quickLaunch">
+                <div class="listbox" tabindex="0" role="listbox" aria-label="Quick Launch apps"></div>
+                <div class="row list-buttons">
+                    <button class="add">Add…</button>
+                    <button class="remove" disabled>Remove</button>
+                </div>
+            </div>
+        </fieldset>
+        <fieldset>
             <legend>Never show in the taskbar</legend>
-            <div id="excludedList" class="listbox" tabindex="0" role="listbox" aria-label="Apps never shown"></div>
-            <div class="row list-buttons">
-                <button id="addExcluded">Add…</button>
-                <button id="removeExcluded" disabled>Remove</button>
+            <div class="applist" data-list="excludedApps">
+                <div class="listbox" tabindex="0" role="listbox" aria-label="Apps never shown"></div>
+                <div class="row list-buttons">
+                    <button class="add">Add…</button>
+                    <button class="remove" disabled>Remove</button>
+                </div>
             </div>
         </fieldset>
         <fieldset>

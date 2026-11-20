@@ -108,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private lazy var config = store.load()
     private var iconCache: [String: String] = [:]
     private var lastSent: [AppEntry]?
+    private var quickLaunchItems: [AppSummary] = []
     private var windowTimer: Timer?
     private lazy var windowManager = WindowManager { [weak self] in self?.fittingArea() }
     private let windowRegistry = WindowRegistry<WindowKey>()
@@ -131,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         positionPanel()
         panel.orderFrontRegardless()
 
+        refreshQuickLaunch()
         load("index.html", into: webView)
         observe()
         updateWindowTimer()
@@ -336,7 +338,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard force || apps != lastSent else { return }
         lastSent = apps
         webView.evaluateJavaScript(
-            NativeMessage.stateScript(apps: apps, collapsed: config.collapsed, theme: config.preferences.theme),
+            NativeMessage.stateScript(apps: apps, collapsed: config.collapsed, theme: config.preferences.theme,
+                                      quickLaunch: quickLaunchItems),
             completionHandler: nil)
     }
 
@@ -383,7 +386,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let dock = screen.map { BarLayout.dockHeight(screen: $0.frame, visible: $0.visibleFrame) } ?? 0
         let script = NativeMessage.settingsScript(
             preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted(), dockHeight: dock,
-            excludedAppDetails: config.preferences.excludedApps.map(appSummary))
+            excludedAppDetails: config.preferences.excludedApps.map(appSummary),
+            quickLaunchDetails: config.preferences.quickLaunch.map(appSummary))
         settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
@@ -394,7 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         updateWindowTimer()  // Accessibility may have just been granted, which turns on badge polling
     }
 
-    // MARK: "Never show" list
+    // MARK: App lists (Options)
 
     /// Name and icon for an app that may not be running: from the running app if there is one, otherwise from
     /// its bundle on disk, otherwise just the bundle ID (e.g. an app that has since been deleted).
@@ -412,15 +416,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         return AppSummary(bundleId: bundleId, name: bundleId, icon: "")
     }
 
-    /// The Add… menu: running apps not already on the list, then a file picker for anything else.
-    private func showExcludedAppMenu() {
-        let excluded = Set(config.preferences.excludedApps)
+    /// The Add… menu for one of the Options lists: running apps not already on it, then a file picker for
+    /// anything else (such as an app that isn't running).
+    private func showAppMenu(for list: AppList) {
+        let already = Set(config.preferences.apps(in: list))
         let me = Bundle.main.bundleIdentifier
         var seen = Set<String>()
         let apps = NSWorkspace.shared.runningApplications
             .filter { app in
                 guard app.activationPolicy == .regular, let id = app.bundleIdentifier, id != me,
-                      !excluded.contains(id) else { return false }
+                      !already.contains(id) else { return false }
                 return seen.insert(id).inserted
             }
             .sorted { ($0.localizedName ?? "").localizedCaseInsensitiveCompare($1.localizedName ?? "") == .orderedAscending }
@@ -428,9 +433,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let menu = NSMenu()
         for app in apps {
             let item = NSMenuItem(title: app.localizedName ?? app.bundleIdentifier!,
-                                  action: #selector(excludeAppFromMenu(_:)), keyEquivalent: "")
+                                  action: #selector(addAppFromMenu(_:)), keyEquivalent: "")
             item.target = self
-            item.representedObject = app.bundleIdentifier
+            item.representedObject = [list.rawValue, app.bundleIdentifier!]
             if let icon = app.icon?.copy() as? NSImage {
                 icon.size = NSSize(width: 16, height: 16)
                 item.image = icon
@@ -443,35 +448,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             menu.addItem(none)
         }
         menu.addItem(.separator())
-        let other = NSMenuItem(title: "Other Application…", action: #selector(chooseOtherAppToExclude), keyEquivalent: "")
+        let other = NSMenuItem(title: "Other Application…", action: #selector(chooseOtherApp(_:)), keyEquivalent: "")
         other.target = self
+        other.representedObject = list.rawValue
         menu.addItem(other)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
-    @objc private func excludeAppFromMenu(_ sender: NSMenuItem) {
-        if let id = sender.representedObject as? String { exclude(id) }
+    @objc private func addAppFromMenu(_ sender: NSMenuItem) {
+        guard let pair = sender.representedObject as? [String], pair.count == 2,
+              let list = AppList(rawValue: pair[0]) else { return }
+        add(pair[1], to: list)
     }
 
-    @objc private func chooseOtherAppToExclude() {
-        guard let window = settingsWindow else { return }
+    @objc private func chooseOtherApp(_ sender: NSMenuItem) {
+        guard let window = settingsWindow, let raw = sender.representedObject as? String,
+              let list = AppList(rawValue: raw) else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.application]
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = "Add"
-        panel.message = "Choose an app to never show in the taskbar."
+        panel.message = list == .quickLaunch
+            ? "Choose an app to add to Quick Launch. System tools like Screenshot are in Utilities."
+            : "Choose an app to never show in the taskbar."
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url, let id = Bundle(url: url)?.bundleIdentifier else { return }
-            self?.exclude(id)
+            self?.add(id, to: list)
         }
     }
 
-    private func exclude(_ bundleId: String) {
-        guard bundleId != Bundle.main.bundleIdentifier, !config.preferences.excludedApps.contains(bundleId) else { return }
-        config.preferences.excludedApps.append(bundleId)
+    private func add(_ bundleId: String, to list: AppList) {
+        guard bundleId != Bundle.main.bundleIdentifier, config.preferences.add(bundleId, to: list) else { return }
         try? store.save(config)
-        pushState()
+        refreshQuickLaunch()
+        pushState(force: true)
         sendSettings()
+    }
+
+    // MARK: Quick Launch
+
+    /// Rebuilds the Quick Launch icons from the preference. Done only when the list changes, because looking
+    /// apps up on disk is too slow to repeat on every refresh. Apps that can no longer be found are left off the bar.
+    private func refreshQuickLaunch() {
+        quickLaunchItems = config.preferences.quickLaunch.map(appSummary).filter { !$0.icon.isEmpty }
+    }
+
+    /// Opens the app, or brings it to the front if it's already running.
+    private func launch(bundleId: String) {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+            if let error { NSLog("Dockyard: couldn't open %@: %@", bundleId, error.localizedDescription) }
+        }
     }
 
     /// Sets the Options window's content height, keeping its top edge where it is.
@@ -504,6 +533,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             windowRegistry.reorder(serials: ids.compactMap { ButtonID.parse($0).window })
             try? store.save(config)
             pushState(force: true)
+        case .launch(let bundleId):
+            launch(bundleId: bundleId)
         case .setCollapsed(let collapsed):
             config.collapsed = collapsed
             try? store.save(config)
@@ -519,6 +550,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .setPreferences(let prefs):
             config.preferences = prefs
             try? store.save(config)
+            refreshQuickLaunch()
             positionPanel()
             updateWindowTimer()
             updateWindowManager()
@@ -528,8 +560,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             // Adds Dockyard to the Accessibility list and shows the system prompt.
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
-        case .chooseExcludedApp:
-            showExcludedAppMenu()
+        case .chooseApp(let list):
+            showAppMenu(for: list)
         case .resizeSettings(let height):
             resizeSettings(to: height)
         case .closeSettings:

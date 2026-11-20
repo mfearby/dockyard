@@ -9,6 +9,8 @@ public enum UIMessage: Equatable {
     case activate(id: String)
     case setOrder([String])
     case setCollapsed(Bool)
+    /// Open a Quick Launch app.
+    case launch(bundleId: String)
     /// Where the bar's tooltip targets are, sent whenever the buttons change or move.
     case setTooltips([TooltipTarget])
     case menu
@@ -16,8 +18,8 @@ public enum UIMessage: Equatable {
     case getSettings
     case setPreferences(Preferences)
     case requestAccessibility
-    /// Show the menu of apps to add to the "never show" list.
-    case chooseExcludedApp
+    /// Show the menu of apps to add to one of the Options window's app lists.
+    case chooseApp(AppList)
     case resizeSettings(height: Double)
     case closeSettings
 
@@ -38,6 +40,9 @@ public enum UIMessage: Equatable {
         case "setCollapsed":
             guard let collapsed = dict["collapsed"] as? Bool else { return nil }
             self = .setCollapsed(collapsed)
+        case "launch":
+            guard let id = dict["bundleId"] as? String else { return nil }
+            self = .launch(bundleId: id)
         case "setTooltips":
             guard let items = dict["tooltips"] as? [Any] else { return nil }
             self = .setTooltips(items.compactMap(TooltipTarget.init(body:)))
@@ -52,14 +57,17 @@ public enum UIMessage: Equatable {
                   let space = (p["screenSpace"] as? String).flatMap(ScreenSpace.init(rawValue:)),
                   let separate = p["separateWindows"] as? Bool,
                   let excluded = p["excludedApps"] as? [String],
+                  let quickLaunch = p["quickLaunch"] as? [String],
                   let theme = (p["theme"] as? String).flatMap(Theme.init(rawValue:)) else { return nil }
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
                                                barHeight: Int(height.rounded()), screenSpace: space,
-                                               separateWindows: separate, excludedApps: excluded, theme: theme))
+                                               separateWindows: separate, excludedApps: excluded,
+                                               quickLaunch: quickLaunch, theme: theme))
         case "requestAccessibility":
             self = .requestAccessibility
-        case "chooseExcludedApp":
-            self = .chooseExcludedApp
+        case "chooseApp":
+            guard let list = (dict["list"] as? String).flatMap(AppList.init(rawValue:)) else { return nil }
+            self = .chooseApp(list)
         case "resizeSettings":
             guard let height = (dict["height"] as? NSNumber)?.doubleValue, height.isFinite else { return nil }
             self = .resizeSettings(height: height)
@@ -155,7 +163,7 @@ public enum WindowLabel {
     }
 }
 
-/// An app's name and icon, for listing apps that may not be running (such as the "never show" list).
+/// An app's name and icon, for listing apps that may not be running (the Options lists and Quick Launch).
 public struct AppSummary: Codable, Equatable {
     public var bundleId: String
     public var name: String
@@ -174,6 +182,7 @@ public enum NativeMessage {
         let apps: [AppEntry]
         let collapsed: Bool
         let theme: Theme
+        let quickLaunch: [AppSummary]
     }
 
     private struct Settings: Encodable {
@@ -183,21 +192,26 @@ public enum NativeMessage {
         let dockHeight: Int
         /// Name and icon for each entry in `preferences.excludedApps`, in the same order.
         let excludedAppDetails: [AppSummary]
+        /// Name and icon for each entry in `preferences.quickLaunch`, in the same order.
+        let quickLaunchDetails: [AppSummary]
         let barHeightMin = Preferences.barHeightRange.lowerBound
         let barHeightMax = Preferences.barHeightRange.upperBound
     }
 
-    /// JavaScript that delivers the current app list, whether the bar is retracted, and its theme to `window.onNative`.
-    public static func stateScript(apps: [AppEntry], collapsed: Bool = false, theme: Theme = .light) -> String {
-        script(State(apps: apps, collapsed: collapsed, theme: theme))
+    /// JavaScript that delivers the bar's buttons, whether it's retracted, its theme and its Quick Launch icons
+    /// to `window.onNative`.
+    public static func stateScript(apps: [AppEntry], collapsed: Bool = false, theme: Theme = .light,
+                                   quickLaunch: [AppSummary] = []) -> String {
+        script(State(apps: apps, collapsed: collapsed, theme: theme, quickLaunch: quickLaunch))
     }
 
     /// JavaScript that delivers the current preferences to the Options window.
     /// `dockHeight` is the space the Dock reserves at the bottom of the screen, or 0 if it reserves none.
     public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool, dockHeight: Int,
-                                      excludedAppDetails: [AppSummary] = []) -> String {
+                                      excludedAppDetails: [AppSummary] = [],
+                                      quickLaunchDetails: [AppSummary] = []) -> String {
         script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight,
-                        excludedAppDetails: excludedAppDetails))
+                        excludedAppDetails: excludedAppDetails, quickLaunchDetails: quickLaunchDetails))
     }
 
     private static func script<T: Encodable>(_ message: T) -> String {

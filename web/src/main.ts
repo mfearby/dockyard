@@ -1,8 +1,9 @@
-import { onNative, send, type AppInfo } from './bridge.ts';
+import { onNative, send, type AppInfo, type AppSummary } from './bridge.ts';
 import { applyOrder, dragTarget, moveItem, shiftFor } from './reorder.ts';
 
 const tasksEl = document.getElementById('tasks')!;
 const toggleEl = document.getElementById('toggle')!;
+const quickEl = document.getElementById('quick')!;
 const GAP = 2;
 
 let collapsed = false;
@@ -57,6 +58,32 @@ function render() {
     sendTooltips();
 }
 
+/** Identifies the Quick Launch icons currently shown, so unchanged lists aren't redrawn every second. */
+let quickKey = '';
+
+function renderQuickLaunch(items: AppSummary[]) {
+    const key = JSON.stringify(items.map((i) => [i.bundleId, i.name]));
+    if (key === quickKey) return;
+    quickKey = key;
+    quickEl.replaceChildren(...items.map((item) => {
+        const el = document.createElement('div');
+        el.className = 'launcher';
+        el.dataset.bundleId = item.bundleId;
+        el.dataset.id = 'launch:' + item.bundleId;
+        el.dataset.tip = item.name;
+        const img = document.createElement('img');
+        img.src = item.icon;
+        el.append(img);
+        return el;
+    }));
+    sendTooltips();
+}
+
+quickEl.addEventListener('click', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.launcher');
+    if (el?.dataset.bundleId) send({ type: 'launch', bundleId: el.dataset.bundleId });
+});
+
 // Buttons shrink and grow with the window, e.g. when the bar is retracted or the screen changes.
 new ResizeObserver(sendTooltips).observe(tasksEl);
 
@@ -64,6 +91,7 @@ onNative((msg) => {
     if (msg.type !== 'state') return;
     document.body.classList.toggle('dark', msg.theme === 'dark');
     setCollapsed(msg.collapsed);
+    renderQuickLaunch(msg.quickLaunch);
     if (dragging) { pending = msg.apps; return; }
     apps = msg.apps;
     render();

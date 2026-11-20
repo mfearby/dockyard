@@ -23,6 +23,9 @@ export type ScreenSpace = 'coverDock' | 'moveWindows';
 
 export type Theme = 'light' | 'dark';
 
+/** The Options window's app lists, managed with Add… and Remove. */
+export type AppList = 'excludedApps' | 'quickLaunch';
+
 export interface Preferences {
     hideHiddenApps: boolean;
     hideAppsWithoutWindows: boolean;
@@ -33,6 +36,8 @@ export interface Preferences {
     separateWindows: boolean;
     /** Bundle IDs of apps that never get a button. */
     excludedApps: string[];
+    /** Bundle IDs of the Quick Launch icons, left to right. */
+    quickLaunch: string[];
     theme: Theme;
 }
 
@@ -45,7 +50,7 @@ export interface AppSummary {
 
 /** Messages from Swift to the page. */
 export type NativeMsg =
-    | { type: 'state'; apps: AppInfo[]; collapsed: boolean; theme: Theme }
+    | { type: 'state'; apps: AppInfo[]; collapsed: boolean; theme: Theme; quickLaunch: AppSummary[] }
     | {
           type: 'settings';
           preferences: Preferences;
@@ -54,6 +59,8 @@ export type NativeMsg =
           dockHeight: number;
           /** Name and icon for each of `preferences.excludedApps`, in the same order. */
           excludedAppDetails: AppSummary[];
+          /** Name and icon for each of `preferences.quickLaunch`, in the same order. */
+          quickLaunchDetails: AppSummary[];
           barHeightMin: number;
           barHeightMax: number;
       };
@@ -66,12 +73,13 @@ export type UIMsg =
     /** `order` lists button IDs left to right. */
     | { type: 'setOrder'; order: string[] }
     | { type: 'setCollapsed'; collapsed: boolean }
+    | { type: 'launch'; bundleId: string }
     /** Elements that show a tooltip on hover; positions in CSS px (points) from the bar's left edge. */
     | { type: 'setTooltips'; tooltips: { id: string; text: string; left: number; width: number }[] }
     | { type: 'getSettings' }
     | { type: 'setPreferences'; preferences: Preferences }
     | { type: 'requestAccessibility' }
-    | { type: 'chooseExcludedApp' }
+    | { type: 'chooseApp'; list: AppList }
     | { type: 'resizeSettings'; height: number }
     | { type: 'closeSettings' };
 

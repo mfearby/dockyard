@@ -1,4 +1,4 @@
-import { onNative, send, type AppSummary, type Preferences, type ScreenSpace, type Theme } from './bridge.ts';
+import { onNative, send, type AppList, type AppSummary, type Preferences, type ScreenSpace, type Theme } from './bridge.ts';
 import { canMatchDock, parseBarHeight } from './prefs.ts';
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -13,8 +13,6 @@ const axNote = byId<HTMLDivElement>('axNote');
 const windowsAxNote = byId<HTMLDivElement>('windowsAxNote');
 const moveAxNote = byId<HTMLDivElement>('moveAxNote');
 const dockNote = byId<HTMLSpanElement>('dockNote');
-const excludedList = byId<HTMLDivElement>('excludedList');
-const removeExcluded = byId<HTMLButtonElement>('removeExcluded');
 
 let accessibilityTrusted = true;
 let dockHeight = 0;
@@ -22,8 +20,78 @@ let min = 28;
 let max = 64;
 /** Last height sent or received, used when the box holds something unusable. */
 let height = 40;
-let excludedApps: AppSummary[] = [];
-let selectedExcluded: string | null = null;
+
+/** One of the Options window's app lists: a list box with Add… and Remove. Add… asks Swift to show its app menu;
+ *  Swift adds the app and sends the settings back. Remove edits the list here and saves it. */
+class AppListBox {
+    apps: AppSummary[] = [];
+    private selected: string | null = null;
+    private readonly listEl: HTMLElement;
+    private readonly removeEl: HTMLButtonElement;
+
+    constructor(root: HTMLElement, readonly list: AppList) {
+        this.listEl = root.querySelector<HTMLElement>('.listbox')!;
+        this.removeEl = root.querySelector<HTMLButtonElement>('.remove')!;
+        this.listEl.addEventListener('mousedown', (e) => {
+            const item = (e.target as HTMLElement).closest<HTMLElement>('.item');
+            this.selected = item?.dataset.id ?? null;
+            this.render();
+        });
+        this.listEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' || e.key === 'Delete') this.removeSelected();
+        });
+        this.removeEl.addEventListener('click', () => this.removeSelected());
+        root.querySelector('.add')!.addEventListener('click', () => send({ type: 'chooseApp', list }));
+    }
+
+    set(apps: AppSummary[]) {
+        this.apps = apps;
+        this.render();
+    }
+
+    ids(): string[] {
+        return this.apps.map((a) => a.bundleId);
+    }
+
+    private removeSelected() {
+        if (this.selected === null) return;
+        this.apps = this.apps.filter((a) => a.bundleId !== this.selected);
+        this.selected = null;
+        this.render();
+        save();
+    }
+
+    private render() {
+        if (!this.apps.some((a) => a.bundleId === this.selected)) this.selected = null;
+        this.removeEl.disabled = this.selected === null;
+        if (this.apps.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'empty';
+            empty.textContent = 'No apps. Use Add\u2026 to choose some.';
+            this.listEl.replaceChildren(empty);
+            return;
+        }
+        this.listEl.replaceChildren(...this.apps.map((app) => {
+            const item = document.createElement('div');
+            item.className = 'item' + (app.bundleId === this.selected ? ' selected' : '');
+            item.dataset.id = app.bundleId;
+            item.setAttribute('role', 'option');
+            if (app.icon) {
+                const img = document.createElement('img');
+                img.src = app.icon;
+                item.append(img);
+            }
+            const name = document.createElement('span');
+            name.textContent = app.name;
+            item.append(name);
+            return item;
+        }));
+    }
+}
+
+const appListRoot = (list: AppList) => document.querySelector<HTMLElement>(`.applist[data-list="${list}"]`)!;
+const quickLaunch = new AppListBox(appListRoot('quickLaunch'), 'quickLaunch');
+const excludedApps = new AppListBox(appListRoot('excludedApps'), 'excludedApps');
 
 function screenSpace(): ScreenSpace {
     return screenSpaceRadios.find((r) => r.checked)?.value === 'moveWindows' ? 'moveWindows' : 'coverDock';
@@ -40,7 +108,8 @@ function current(): Preferences {
         barHeight: height,
         screenSpace: screenSpace(),
         separateWindows: separateWindows.checked,
-        excludedApps: excludedApps.map((a) => a.bundleId),
+        excludedApps: excludedApps.ids(),
+        quickLaunch: quickLaunch.ids(),
         theme: theme(),
     };
 }
@@ -77,57 +146,10 @@ onNative((msg) => {
     barHeight.max = String(max);
     // Don't overwrite the box while the user is typing in it.
     if (document.activeElement !== barHeight) barHeight.value = String(height);
-    excludedApps = msg.excludedAppDetails;
-    renderExcluded();
+    excludedApps.set(msg.excludedAppDetails);
+    quickLaunch.set(msg.quickLaunchDetails);
     updateNotes();
 });
-
-function renderExcluded() {
-    if (!excludedApps.some((a) => a.bundleId === selectedExcluded)) selectedExcluded = null;
-    removeExcluded.disabled = selectedExcluded === null;
-    if (excludedApps.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty';
-        empty.textContent = 'No apps. Use Add\u2026 to choose some.';
-        excludedList.replaceChildren(empty);
-        return;
-    }
-    excludedList.replaceChildren(...excludedApps.map((app) => {
-        const item = document.createElement('div');
-        item.className = 'item' + (app.bundleId === selectedExcluded ? ' selected' : '');
-        item.dataset.id = app.bundleId;
-        item.setAttribute('role', 'option');
-        if (app.icon) {
-            const img = document.createElement('img');
-            img.src = app.icon;
-            item.append(img);
-        }
-        const name = document.createElement('span');
-        name.textContent = app.name;
-        item.append(name);
-        return item;
-    }));
-}
-
-excludedList.addEventListener('mousedown', (e) => {
-    const item = (e.target as HTMLElement).closest<HTMLElement>('.item');
-    selectedExcluded = item?.dataset.id ?? null;
-    renderExcluded();
-});
-
-function removeSelectedExcluded() {
-    if (selectedExcluded === null) return;
-    excludedApps = excludedApps.filter((a) => a.bundleId !== selectedExcluded);
-    selectedExcluded = null;
-    renderExcluded();
-    save();
-}
-
-removeExcluded.addEventListener('click', removeSelectedExcluded);
-excludedList.addEventListener('keydown', (e) => {
-    if (e.key === 'Backspace' || e.key === 'Delete') removeSelectedExcluded();
-});
-byId('addExcluded').addEventListener('click', () => send({ type: 'chooseExcludedApp' }));
 
 for (const input of [hideHiddenApps, hideAppsWithoutWindows, separateWindows, ...screenSpaceRadios, ...themeRadios]) {
     input.addEventListener('change', () => {

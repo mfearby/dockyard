@@ -25,16 +25,32 @@ struct UIMessageTests {
     @Test func parsesOptionsWindowMessages() {
         #expect(UIMessage(body: ["type": "getSettings"]) == .getSettings)
         #expect(UIMessage(body: ["type": "requestAccessibility"]) == .requestAccessibility)
-        #expect(UIMessage(body: ["type": "chooseExcludedApp"]) == .chooseExcludedApp)
+        #expect(UIMessage(body: ["type": "chooseApp", "list": "excludedApps"]) == .chooseApp(.excludedApps))
+        #expect(UIMessage(body: ["type": "chooseApp", "list": "quickLaunch"]) == .chooseApp(.quickLaunch))
+        #expect(UIMessage(body: ["type": "chooseApp", "list": "favourites"]) == nil)
+        #expect(UIMessage(body: ["type": "chooseApp"]) == nil)
+    }
+
+    @Test func parsesLaunch() {
+        #expect(UIMessage(body: ["type": "launch", "bundleId": "com.apple.screenshot.launcher"])
+            == .launch(bundleId: "com.apple.screenshot.launcher"))
+        #expect(UIMessage(body: ["type": "launch"]) == nil)
         #expect(UIMessage(body: ["type": "closeSettings"]) == .closeSettings)
     }
 
     private func setPreferences(height: Any = 40, screenSpace: Any = "coverDock",
-                                excludedApps: Any = [String](), theme: Any = "light") -> [String: Any] {
+                                excludedApps: Any = [String](), quickLaunch: Any = [String](),
+                                theme: Any = "light") -> [String: Any] {
         ["type": "setPreferences",
          "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
                          "screenSpace": screenSpace, "separateWindows": false, "excludedApps": excludedApps,
-                         "theme": theme]]
+                         "quickLaunch": quickLaunch, "theme": theme]]
+    }
+
+    @Test func parsesQuickLaunch() {
+        #expect(UIMessage(body: setPreferences(quickLaunch: ["com.apple.screenshot.launcher"]))
+            == .setPreferences(Preferences(hideHiddenApps: true, quickLaunch: ["com.apple.screenshot.launcher"])))
+        #expect(UIMessage(body: setPreferences(quickLaunch: "com.apple.screenshot.launcher")) == nil)
     }
 
     @Test func parsesTheme() {
@@ -62,6 +78,7 @@ struct UIMessageTests {
                                                    "screenSpace": "coverDock",
                                                    "separateWindows": NSNumber(value: true),
                                                    "excludedApps": [String](),
+                                                   "quickLaunch": [String](),
                                                    "theme": "light"]]
         #expect(UIMessage(body: body)
             == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36,
@@ -142,7 +159,13 @@ struct NativeMessageTests {
 
     @Test func stateHasTheShapeTheUIExpects() throws {
         let entry = AppEntry(bundleId: "com.apple.Notes", name: "Notes", icon: "data:image/png;base64,AA==", active: true)
-        let msg = try payload(NativeMessage.stateScript(apps: [entry], collapsed: true, theme: .dark))
+        let msg = try payload(NativeMessage.stateScript(
+            apps: [entry], collapsed: true, theme: .dark,
+            quickLaunch: [AppSummary(bundleId: "com.apple.screenshot.launcher", name: "Screenshot", icon: "data:,")]))
+        let quick = try #require(msg["quickLaunch"] as? [[String: Any]])
+        #expect(quick.count == 1)
+        #expect(quick[0]["bundleId"] as? String == "com.apple.screenshot.launcher")
+        #expect(quick[0]["name"] as? String == "Screenshot")
         #expect(msg["type"] as? String == "state")
         #expect(msg["collapsed"] as? Bool == true)
         #expect(msg["theme"] as? String == "dark")
@@ -162,7 +185,8 @@ struct NativeMessageTests {
             preferences: Preferences(hideHiddenApps: true, hideAppsWithoutWindows: false, barHeight: 36,
                                      screenSpace: .moveWindows, excludedApps: ["com.spotify.client"]),
             accessibilityTrusted: false, dockHeight: 36,
-            excludedAppDetails: [AppSummary(bundleId: "com.spotify.client", name: "Spotify", icon: "data:,")])
+            excludedAppDetails: [AppSummary(bundleId: "com.spotify.client", name: "Spotify", icon: "data:,")],
+            quickLaunchDetails: [AppSummary(bundleId: "com.apple.Notes", name: "Notes", icon: "data:,")])
         let msg = try payload(script)
         #expect(msg["type"] as? String == "settings")
         #expect(msg["accessibilityTrusted"] as? Bool == false)
@@ -175,6 +199,8 @@ struct NativeMessageTests {
         #expect(prefs["barHeight"] as? Int == 36)
         #expect(prefs["screenSpace"] as? String == "moveWindows")
         #expect(prefs["excludedApps"] as? [String] == ["com.spotify.client"])
+        let quickDetails = try #require(msg["quickLaunchDetails"] as? [[String: Any]])
+        #expect(quickDetails.first?["name"] as? String == "Notes")
         let details = try #require(msg["excludedAppDetails"] as? [[String: Any]])
         #expect(details.count == 1)
         #expect(details[0]["bundleId"] as? String == "com.spotify.client")

@@ -56,6 +56,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
   text-align: center; box-shadow: 0 0 0 1px var(--face); max-width: 30px; overflow: hidden; text-overflow: ellipsis; }
 .task.dragging { transition: none; z-index: 10; opacity: 0.85; }
 
+/* Quick Launch: bare icons with no button face, between the menu button and the taskbar buttons.
+   The area and its separator disappear when the list is empty. */
+#quick { flex: none; display: flex; align-items: center; gap: 2px; }
+#quick:empty, #quick:empty + .sep { display: none; }
+.launcher { display: flex; align-items: center; justify-content: center;
+  width: calc(var(--icon) + 6px); height: var(--button-h); }
+.launcher img { width: var(--icon); height: var(--icon); pointer-events: none; }
+.launcher:active img { transform: translate(1px, 1px); }
+
 /* Thin button at the far right that retracts the bar. The arrow points the way the bar will move. */
 #toggle { flex: none; width: 12px; height: var(--button-h); padding: 0; border: 0;
   background: var(--face);

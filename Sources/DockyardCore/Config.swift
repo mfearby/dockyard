@@ -14,6 +14,14 @@ public enum Theme: String, Codable, Equatable {
     case dark
 }
 
+/// The lists of apps the user manages in Options with Add… and Remove.
+public enum AppList: String, Codable, Equatable {
+    /// Apps that never get a button on the bar.
+    case excludedApps
+    /// Launcher icons between the menu button and the taskbar buttons.
+    case quickLaunch
+}
+
 /// Options the user can toggle on the Options screen.
 public struct Preferences: Codable, Equatable {
     /// Leave apps hidden with Command-H off the bar.
@@ -30,6 +38,8 @@ public struct Preferences: Codable, Equatable {
     public var separateWindows: Bool
     /// Bundle IDs of apps that never get a button on the bar, in the order the user added them.
     public var excludedApps: [String]
+    /// Bundle IDs of the Quick Launch icons, left to right.
+    public var quickLaunch: [String]
     public var theme: Theme
 
     public static let defaultBarHeight = 40
@@ -42,14 +52,34 @@ public struct Preferences: Codable, Equatable {
 
     public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
                 barHeight: Int = Preferences.defaultBarHeight, screenSpace: ScreenSpace = .coverDock,
-                separateWindows: Bool = false, excludedApps: [String] = [], theme: Theme = .light) {
+                separateWindows: Bool = false, excludedApps: [String] = [], quickLaunch: [String] = [],
+                theme: Theme = .light) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
         self.barHeight = Preferences.clampBarHeight(barHeight)
         self.screenSpace = screenSpace
         self.separateWindows = separateWindows
         self.excludedApps = excludedApps
+        self.quickLaunch = quickLaunch
         self.theme = theme
+    }
+
+    public func apps(in list: AppList) -> [String] {
+        switch list {
+        case .excludedApps: excludedApps
+        case .quickLaunch: quickLaunch
+        }
+    }
+
+    /// Appends `bundleId` to `list` unless it's already there. Returns whether it was added.
+    @discardableResult
+    public mutating func add(_ bundleId: String, to list: AppList) -> Bool {
+        guard !apps(in: list).contains(bundleId) else { return false }
+        switch list {
+        case .excludedApps: excludedApps.append(bundleId)
+        case .quickLaunch: quickLaunch.append(bundleId)
+        }
+        return true
     }
 
     public init(from decoder: Decoder) throws {
@@ -62,6 +92,7 @@ public struct Preferences: Codable, Equatable {
         screenSpace = ((try? c.decodeIfPresent(ScreenSpace.self, forKey: .screenSpace)) ?? nil) ?? .coverDock
         separateWindows = try c.decodeIfPresent(Bool.self, forKey: .separateWindows) ?? false
         excludedApps = try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? []
+        quickLaunch = try c.decodeIfPresent([String].self, forKey: .quickLaunch) ?? []
         theme = ((try? c.decodeIfPresent(Theme.self, forKey: .theme)) ?? nil) ?? .light
     }
 }

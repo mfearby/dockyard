@@ -138,4 +138,30 @@ struct ConfigTests {
         #expect(config.preferences.theme == .light)
         #expect(config.preferences.barHeight == 36)
     }
+
+    @Test func quickLaunchDefaultsToEmptyAndRoundTripsInOrder() throws {
+        let empty = try JSONDecoder().decode(Config.self, from: Data(#"{"preferences": {}}"#.utf8))
+        #expect(empty.preferences.quickLaunch.isEmpty)
+        let store = makeStore()
+        try store.save(Config(preferences: Preferences(quickLaunch: ["com.apple.screenshot.launcher", "com.apple.Notes"])))
+        #expect(store.load().preferences.quickLaunch == ["com.apple.screenshot.launcher", "com.apple.Notes"])
+    }
+
+    @Test func addingToAListAppendsOnce() {
+        var prefs = Preferences()
+        let first = prefs.add("com.apple.Notes", to: .quickLaunch)
+        let second = prefs.add("com.apple.finder", to: .quickLaunch)
+        let duplicate = prefs.add("com.apple.Notes", to: .quickLaunch)
+        #expect(first && second && !duplicate)
+        #expect(prefs.quickLaunch == ["com.apple.Notes", "com.apple.finder"])
+    }
+
+    @Test func listsAreIndependent() {
+        var prefs = Preferences()
+        prefs.add("com.spotify.client", to: .excludedApps)
+        let added = prefs.add("com.spotify.client", to: .quickLaunch)
+        #expect(added)
+        #expect(prefs.apps(in: .excludedApps) == ["com.spotify.client"])
+        #expect(prefs.apps(in: .quickLaunch) == ["com.spotify.client"])
+    }
 }
