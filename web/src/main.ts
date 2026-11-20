@@ -100,7 +100,8 @@ onNative((msg) => {
 // Pointer-based drag to reorder. A press that moves < 5px counts as a click.
 tasksEl.addEventListener('pointerdown', (e) => {
     const el = (e.target as HTMLElement).closest<HTMLElement>('.task');
-    if (!el || e.button !== 0) return;
+    // Control-click is a right-click on macOS; leave it to the contextmenu handler below.
+    if (!el || e.button !== 0 || e.ctrlKey) return;
     const items = Array.from(tasksEl.children) as HTMLElement[];
     const from = items.indexOf(el);
     const step = el.offsetWidth + GAP;
@@ -148,6 +149,9 @@ tasksEl.addEventListener('pointerdown', (e) => {
 });
 
 document.getElementById('start')!.addEventListener('click', () => send({ type: 'menu' }));
+
+// Right-clicks are handled natively (BarWebView in main.swift), which shows Dockyard's own menus.
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 toggleEl.addEventListener('click', () => {
     // When retracting, hide the buttons before Swift shrinks the window, so the narrow strip never

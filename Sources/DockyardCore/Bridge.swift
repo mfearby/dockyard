@@ -122,6 +122,12 @@ public enum ButtonID {
 
     public static func window(_ bundleId: String, serial: Int) -> String { "\(bundleId)#\(serial)" }
 
+    /// Whether a tooltip target's ID is a taskbar button, as opposed to the bar's other elements: the menu
+    /// button ("start"), the toggle ("toggle") and Quick Launch icons ("launch:<bundleId>"), as set in web/src/main.ts.
+    public static func isTaskButton(_ id: String) -> Bool {
+        !id.isEmpty && id != "start" && id != "toggle" && !id.hasPrefix("launch:")
+    }
+
     /// Splits an ID into its bundle ID and window serial (nil for an app button). Bundle IDs never contain "#".
     public static func parse(_ id: String) -> (bundleId: String, window: Int?) {
         guard let hash = id.lastIndex(of: "#"), let serial = Int(id[id.index(after: hash)...]) else { return (id, nil) }

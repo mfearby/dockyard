@@ -12,9 +12,38 @@ final class BarPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Lets the first click on the bar register as a click, not just a focus request.
+/// Lets the first click on the bar register as a click, not just a focus request, and replaces WebKit's
+/// right-click menu (Reload, Inspect Element) with Dockyard's own.
 final class BarWebView: WKWebView {
+    /// Called with the x position (points from the bar's left edge) of a right-click or Control-click.
+    var onRightClick: ((CGFloat) -> Void)?
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // WebKit doesn't pass these on to the page's script here, so they're handled natively. Not calling super
+    // also stops WebKit's own menu.
+    override func rightMouseDown(with event: NSEvent) {
+        onRightClick?(convert(event.locationInWindow, from: nil).x)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) {
+            onRightClick?(convert(event.locationInWindow, from: nil).x)
+        } else {
+            super.mouseDown(with: event)
+        }
+    }
+
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        menu.removeAllItems()  // in case WebKit opens its menu another way
+    }
+}
+
+/// A web view without WebKit's right-click menu, for the Options window.
+final class QuietWebView: WKWebView {
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        menu.removeAllItems()
+    }
 }
 
 // MARK: - Windows via Accessibility
@@ -91,6 +120,84 @@ enum AXWindows {
         // Without .activateAllWindows, so only the raised window comes forward.
         app.activate(options: [])
     }
+
+    // MARK: Window actions (taskbar right-click menu)
+
+    /// The window an app button's menu acts on: the app's main window, else its focused one, else its first.
+    static func primaryWindow(pid: pid_t) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        for name in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
+            if let value = attribute(app, name), CFGetTypeID(value) == AXUIElementGetTypeID() {
+                return (value as! AXUIElement)
+            }
+        }
+        return list(pid: pid)?.first?.key.element
+    }
+
+    static func isMinimised(_ window: AXUIElement) -> Bool {
+        attribute(window, kAXMinimizedAttribute) as? Bool == true
+    }
+
+    static func setMinimised(_ window: AXUIElement, _ minimised: Bool) {
+        AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString,
+                                     minimised ? kCFBooleanTrue : kCFBooleanFalse)
+    }
+
+    static func canResize(_ window: AXUIElement) -> Bool {
+        var settable: DarwinBoolean = false
+        AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &settable)
+        return settable.boolValue
+    }
+
+    /// The window's close button, if it has one that's enabled.
+    static func closeButton(_ window: AXUIElement) -> AXUIElement? {
+        guard let value = attribute(window, kAXCloseButtonAttribute), CFGetTypeID(value) == AXUIElementGetTypeID()
+        else { return nil }
+        let button = value as! AXUIElement
+        return attribute(button, kAXEnabledAttribute) as? Bool == false ? nil : button
+    }
+
+    /// Clicks the close button, so the app can still ask to save changes, as when the user clicks it.
+    static func close(_ window: AXUIElement) {
+        if let button = closeButton(window) { AXUIElementPerformAction(button, kAXPressAction as CFString) }
+    }
+
+    static func frame(of window: AXUIElement) -> CGRect? {
+        guard let position = attribute(window, kAXPositionAttribute), CFGetTypeID(position) == AXValueGetTypeID(),
+              let size = attribute(window, kAXSizeAttribute), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
+        var origin = CGPoint.zero
+        var extent = CGSize.zero
+        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(size as! AXValue, .cgSize, &extent) else { return nil }
+        return CGRect(origin: origin, size: extent)
+    }
+
+    static func setFrame(_ window: AXUIElement, _ frame: CGRect) {
+        var origin = frame.origin
+        var size = frame.size
+        // Move first, then size, then move again: some apps clamp the size to the screen the window is on.
+        if let value = AXValueCreate(.cgPoint, &origin) {
+            AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
+        }
+        if let value = AXValueCreate(.cgSize, &size) {
+            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
+        }
+        if let value = AXValueCreate(.cgPoint, &origin) {
+            AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
+        }
+    }
+}
+
+/// What a taskbar button's right-click menu acts on.
+final class MenuTarget: NSObject {
+    let app: NSRunningApplication
+    let window: AXUIElement?
+
+    init(app: NSRunningApplication, window: AXUIElement?) {
+        self.app = app
+        self.window = window
+    }
 }
 
 // MARK: - App delegate
@@ -129,6 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         panel.hidesOnDeactivate = false
         panel.contentView = webView
         tooltips = TooltipController(view: webView)
+        webView.onRightClick = { [weak self] x in self?.showContextMenu(atBarX: x) }
         positionPanel()
         panel.orderFrontRegardless()
 
@@ -360,7 +468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     @objc private func openSettings() {
         if settingsWindow == nil {
-            let view = makeWebView(WKWebView.self)
+            let view = makeWebView(QuietWebView.self)
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 440, height: 480),  // the page resizes it to fit
                 styleMask: [.titled, .closable],
@@ -591,6 +699,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         quit.target = NSApp
         menu.addItem(quit)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    // MARK: Taskbar button menu
+
+    /// Right-click on the bar: a taskbar button's menu over a button, the hamburger menu anywhere else.
+    private func showContextMenu(atBarX x: CGFloat) {
+        if let id = tooltips.target(atX: x)?.id, ButtonID.isTaskButton(id) {
+            showButtonMenu(buttonID: id)
+        } else {
+            showMenu()
+        }
+    }
+
+    /// The right-click menu for a taskbar button. Window items act on that button's window, or for an app button,
+    /// on the app's main window. Hiding is left to Command-H.
+    private func showButtonMenu(buttonID: String) {
+        let parsed = ButtonID.parse(buttonID)
+        var target: MenuTarget?
+        if let serial = parsed.window, let found = windowRegistry.lookup(serial: serial),
+           let app = NSRunningApplication(processIdentifier: found.pid) {
+            target = MenuTarget(app: app, window: found.key.element)
+        } else if let app = NSRunningApplication.runningApplications(withBundleIdentifier: parsed.bundleId).first {
+            target = MenuTarget(app: app, window: AXIsProcessTrusted() ? AXWindows.primaryWindow(pid: app.processIdentifier) : nil)
+        }
+        guard let target else { return }
+
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let window = target.window
+        let minimised = window.map(AXWindows.isMinimised) ?? false
+        addTargetItem(to: menu, title: minimised ? "Restore" : "Minimise",
+                      action: #selector(toggleMinimiseFromMenu(_:)), target: target, enabled: window != nil)
+        addTargetItem(to: menu, title: "Maximise", action: #selector(maximiseFromMenu(_:)), target: target,
+                      enabled: window.map(AXWindows.canResize) ?? false)
+        addTargetItem(to: menu, title: "Close Window", action: #selector(closeWindowFromMenu(_:)), target: target,
+                      enabled: window.flatMap(AXWindows.closeButton) != nil)
+        menu.addItem(.separator())
+        let name = target.app.localizedName ?? parsed.bundleId
+        addTargetItem(to: menu, title: "Quit \(name)", action: #selector(quitFromMenu(_:)), target: target, enabled: true)
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func addTargetItem(to menu: NSMenu, title: String, action: Selector, target: MenuTarget, enabled: Bool) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.representedObject = target
+        item.isEnabled = enabled
+        menu.addItem(item)
+    }
+
+    @objc private func toggleMinimiseFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget, let window = target.window else { return }
+        if AXWindows.isMinimised(window) {
+            AXWindows.raise(window, of: target.app)
+        } else {
+            AXWindows.setMinimised(window, true)
+        }
+        refreshSoon()
+    }
+
+    /// Sizes the window to fill its screen's usable area (above the taskbar on the bar's screen), without
+    /// switching to macOS full screen.
+    @objc private func maximiseFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget, let window = target.window,
+              let primary = primaryScreen else { return }
+        if AXWindows.isMinimised(window) { AXWindows.setMinimised(window, false) }
+        let primaryHeight = primary.frame.height
+        let screens = NSScreen.screens
+        let index = AXWindows.frame(of: window).flatMap {
+            WindowFitting.screenIndex(of: $0, screens: screens.map(\.frame), primaryHeight: primaryHeight)
+        } ?? 0
+        let screen = screens[index]
+        let barHeight: CGFloat = (screen == primary && !config.collapsed) ? CGFloat(config.preferences.barHeight) : 0
+        let frame = WindowFitting.maximisedFrame(screen: screen.frame, visible: screen.visibleFrame,
+                                                 barHeight: barHeight, primaryHeight: primaryHeight)
+        AXWindows.setFrame(window, frame)
+        AXWindows.raise(window, of: target.app)
+        refreshSoon()
+    }
+
+    @objc private func closeWindowFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget, let window = target.window else { return }
+        AXWindows.close(window)
+        refreshSoon()
+    }
+
+    /// Asks the app to quit normally, so it can still prompt to save unsaved work.
+    @objc private func quitFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget else { return }
+        target.app.terminate()
+    }
+
+    /// Window changes from the menu post no workspace notification, so refresh the bar shortly after.
+    private func refreshSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.pushState() }
     }
 
     private func addMenuItem(to menu: NSMenu, title: String, action: Selector, icon: NSImage?) {

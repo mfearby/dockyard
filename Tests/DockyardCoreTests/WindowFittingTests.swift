@@ -73,4 +73,50 @@ struct WindowFittingTests {
     @Test func ignoresSubPointOverlaps() {
         #expect(fit(0, 30, 1920, 1010.4) == nil)
     }
+
+    // MARK: Maximise
+
+    /// The user's setup: a 1920x1080 BenQ (primary) and a 1496x967 laptop screen to its right, raised 113pt.
+    private let benq = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+    private let laptop = CGRect(x: 1920, y: 113, width: 1496, height: 967)
+
+    @Test func maximiseFillsThePrimaryScreenAboveTheBar() {
+        // Dock hidden: the visible frame only loses the 30pt menu bar.
+        let frame = WindowFitting.maximisedFrame(screen: benq, visible: CGRect(x: 0, y: 0, width: 1920, height: 1050),
+                                                 barHeight: 40, primaryHeight: 1080)
+        #expect(frame == CGRect(x: 0, y: 30, width: 1920, height: 1010))
+    }
+
+    @Test func maximiseDoesNotDoubleCountADockUnderTheBar() {
+        // "Cover the Dock": the visible frame already stops 36pt up, above the Dock the bar covers.
+        let frame = WindowFitting.maximisedFrame(screen: benq, visible: CGRect(x: 0, y: 36, width: 1920, height: 1014),
+                                                 barHeight: 36, primaryHeight: 1080)
+        #expect(frame == CGRect(x: 0, y: 30, width: 1920, height: 1014))
+    }
+
+    @Test func maximiseRespectsADockOnTheSide() {
+        let frame = WindowFitting.maximisedFrame(screen: benq, visible: CGRect(x: 60, y: 0, width: 1860, height: 1050),
+                                                 barHeight: 40, primaryHeight: 1080)
+        #expect(frame == CGRect(x: 60, y: 30, width: 1860, height: 1010))
+    }
+
+    @Test func maximiseOnAnotherScreenUsesItsOwnArea() {
+        // No bar there. Laptop menu bar is 27.5pt; AX y of its top edge is 1080 - 1080 = 0.
+        let visible = CGRect(x: 1920, y: 113, width: 1496, height: 939.5)
+        let frame = WindowFitting.maximisedFrame(screen: laptop, visible: visible, barHeight: 0, primaryHeight: 1080)
+        #expect(frame == CGRect(x: 1920, y: 27.5, width: 1496, height: 939.5))
+    }
+
+    @Test func findsTheScreenMostOfTheWindowIsOn() {
+        let screens = [benq, laptop]
+        #expect(WindowFitting.screenIndex(of: CGRect(x: 100, y: 100, width: 800, height: 600),
+                                          screens: screens, primaryHeight: 1080) == 0)
+        #expect(WindowFitting.screenIndex(of: CGRect(x: 2000, y: 100, width: 800, height: 600),
+                                          screens: screens, primaryHeight: 1080) == 1)
+        // Straddling, mostly on the laptop.
+        #expect(WindowFitting.screenIndex(of: CGRect(x: 1800, y: 100, width: 800, height: 600),
+                                          screens: screens, primaryHeight: 1080) == 1)
+        #expect(WindowFitting.screenIndex(of: CGRect(x: -5000, y: 100, width: 800, height: 600),
+                                          screens: screens, primaryHeight: 1080) == nil)
+    }
 }

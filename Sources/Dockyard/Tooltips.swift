@@ -65,6 +65,11 @@ final class TooltipController: NSResponder {
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
     }
 
+    /// The element at `x` (points from the bar's left edge), using the same positions as the tooltips.
+    func target(atX x: CGFloat) -> TooltipTarget? {
+        TooltipTarget.hit(Double(x), in: targets)
+    }
+
     func setTargets(_ targets: [TooltipTarget]) {
         self.targets = targets
         // The buttons changed under a still pointer: follow whatever is there now.

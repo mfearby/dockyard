@@ -56,4 +56,31 @@ public enum WindowFitting {
         }
         return result == window ? nil : result
     }
+
+    // MARK: Maximise
+
+    /// The frame for "Maximise" from the taskbar menu: the whole usable area of the window's screen, as with
+    /// Windows' Maximise, rather than macOS full screen. AppKit frames in (origin bottom-left, y up); the result is
+    /// in Accessibility coordinates. `barHeight` is how much of this screen's bottom the taskbar covers (0 if it
+    /// isn't on this screen or is retracted); the visible frame may already leave room for it when the Dock is there.
+    public static func maximisedFrame(screen: CGRect, visible: CGRect, barHeight: CGFloat,
+                                      primaryHeight: CGFloat) -> CGRect {
+        let bottom = max(visible.minY, screen.minY + barHeight)
+        let usable = CGRect(x: visible.minX, y: bottom, width: visible.width, height: visible.maxY - bottom)
+        return CGRect(x: usable.minX, y: primaryHeight - usable.maxY, width: usable.width, height: usable.height)
+    }
+
+    /// The index of the screen (AppKit frames) that most of `window` (Accessibility coordinates) is on,
+    /// or nil if it isn't on any.
+    public static func screenIndex(of window: CGRect, screens: [CGRect], primaryHeight: CGFloat) -> Int? {
+        let appKit = CGRect(x: window.minX, y: primaryHeight - window.maxY, width: window.width, height: window.height)
+        var best: (index: Int, area: CGFloat)?
+        for (i, screen) in screens.enumerated() {
+            let overlap = screen.intersection(appKit)
+            guard !overlap.isNull else { continue }
+            let area = overlap.width * overlap.height
+            if area > 0, area > (best?.area ?? 0) { best = (i, area) }
+        }
+        return best?.index
+    }
 }

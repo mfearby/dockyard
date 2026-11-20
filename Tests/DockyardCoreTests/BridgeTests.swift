@@ -132,6 +132,15 @@ struct ButtonIDTests {
         #expect(ButtonID.parse(id) == ("com.jetbrains.intellij", 7))
     }
 
+    @Test func tellsTaskButtonsFromTheBarsOtherElements() {
+        #expect(ButtonID.isTaskButton("com.apple.Notes"))
+        #expect(ButtonID.isTaskButton("com.jetbrains.intellij#3"))
+        #expect(!ButtonID.isTaskButton("start"))
+        #expect(!ButtonID.isTaskButton("toggle"))
+        #expect(!ButtonID.isTaskButton("launch:com.apple.screenshot.launcher"))
+        #expect(!ButtonID.isTaskButton(""))
+    }
+
     @Test func malformedSerialIsTreatedAsAnAppButton() {
         #expect(ButtonID.parse("com.example#abc") == ("com.example#abc", nil))
     }
