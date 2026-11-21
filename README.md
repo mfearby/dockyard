@@ -3,6 +3,23 @@
 Dockyard is a Windows 95-style taskbar for macOS. It runs along the bottom of your main display and gives
 every running app (or every window) its own button with an icon and a text label, as an alternative to the Dock.
 
+## Screenshots
+
+The taskbar in the light and dark themes:
+
+<p>
+  <img src="images/light_taskbar.png" width="688" alt="Dockyard taskbar in the light theme: the menu button, Quick Launch icons for Screenshot, Calendar and Notes, and buttons for open windows">
+</p>
+<p>
+  <img src="images/dark_taskbar.png" width="688" alt="Dockyard taskbar in the dark theme">
+</p>
+
+The Options window, in the dark theme (left) and the light theme (right):
+
+<p>
+  <img src="images/options.png" width="579" alt="Dockyard Options window in the dark and light themes, showing taskbar button options, appearance, Quick Launch, the never-show list and screen space settings">
+</p>
+
 ## Built with Kiro
 
 Dockyard was built with [Kiro](https://kiro.dev), an AI coding assistant. If you have Kiro, you can build
