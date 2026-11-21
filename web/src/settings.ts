@@ -101,6 +101,11 @@ function theme(): Theme {
     return themeRadios.find((r) => r.checked)?.value === 'dark' ? 'dark' : 'light';
 }
 
+/** Shows the Options window in the taskbar's theme. */
+function applyTheme(value: Theme) {
+    document.documentElement.classList.toggle('dark', value === 'dark');
+}
+
 function current(): Preferences {
     return {
         hideHiddenApps: hideHiddenApps.checked,
@@ -137,6 +142,7 @@ onNative((msg) => {
     separateWindows.checked = msg.preferences.separateWindows;
     for (const radio of screenSpaceRadios) radio.checked = radio.value === msg.preferences.screenSpace;
     for (const radio of themeRadios) radio.checked = radio.value === msg.preferences.theme;
+    applyTheme(msg.preferences.theme);
     accessibilityTrusted = msg.accessibilityTrusted;
     dockHeight = msg.dockHeight;
     min = msg.barHeightMin;
@@ -153,6 +159,7 @@ onNative((msg) => {
 
 for (const input of [hideHiddenApps, hideAppsWithoutWindows, separateWindows, ...screenSpaceRadios, ...themeRadios]) {
     input.addEventListener('change', () => {
+        applyTheme(theme());
         updateNotes();
         save();
     });

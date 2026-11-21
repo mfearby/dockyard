@@ -492,6 +492,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private func sendSettings() {
         let screen = primaryScreen
         let dock = screen.map { BarLayout.dockHeight(screen: $0.frame, visible: $0.visibleFrame) } ?? 0
+        // Match the window's title bar to the page. Only this window; menus keep following macOS's own setting.
+        settingsWindow?.appearance = NSAppearance(named: config.preferences.theme == .dark ? .darkAqua : .aqua)
         let script = NativeMessage.settingsScript(
             preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted(), dockHeight: dock,
             excludedAppDetails: config.preferences.excludedApps.map(appSummary),

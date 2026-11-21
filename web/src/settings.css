@@ -1,13 +1,36 @@
 :root {
+    /* Light theme. --hi/--lo/--dark are the bevel's highlight, inner shadow and outer shadow; --well is the
+       inside of list boxes, text boxes and checkboxes; --text is labels and glyphs (ticks, radio dots). */
     --face: #c0c0c0;
     --hi: #ffffff;
     --lo: #808080;
     --dark: #000000;
+    --text: #000000;
+    --well: #ffffff;
+    --note: #333333;
+    --selection: #000080;
+    --selection-text: #ffffff;
+    --disabled: #808080;
+    --disabled-shadow: #ffffff;
+}
+/* Dark theme, matching the taskbar's. Set on <html> so the area outside the body changes too. */
+:root.dark {
+    --face: #2b2b2b;
+    --hi: #5a5a5a;
+    --lo: #161616;
+    --dark: #000000;
+    --text: #ffffff;
+    --well: #1a1a1a;
+    --note: #c8c8c8;
+    --selection: #2b4f8f;
+    --selection-text: #ffffff;
+    --disabled: #6e6e6e;
+    --disabled-shadow: #161616;
 }
 * { box-sizing: border-box; user-select: none; -webkit-user-select: none; cursor: default; }
 html { height: 100%; background: var(--face); }
 /* The body isn't stretched to the window: its height is measured and the window is resized to fit it. */
-body { margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--dark);
+body { margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text);
     font: 12px -apple-system, "Helvetica Neue", sans-serif; }
 
 fieldset { margin: 0; padding: 10px 12px 12px; border: 0;
@@ -18,14 +41,15 @@ legend { padding: 0 5px; margin-left: -2px; background: var(--face); position: r
 
 .check, .radio { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .check input, .radio input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; flex: none;
-    background: var(--hi); position: relative;
+    background: var(--well); position: relative;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
+/* The tick's colour is set explicitly: form controls don't inherit the page's text colour. */
 .check input:checked::after { content: "✓"; position: absolute; inset: 0; font: bold 11px/13px sans-serif;
-    text-align: center; }
+    text-align: center; color: var(--text); }
 .radio input { border-radius: 50%; }
-.radio input:checked::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--dark); }
+.radio input:checked::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--text); }
 
-.note { margin: 2px 0 8px 21px; color: #333; }
+.note { margin: 2px 0 8px 21px; color: var(--note); }
 .note p { margin: 0 0 6px; line-height: 1.4; }
 
 /* Buttons keep their label on one line and don't shrink when a row is crowded (e.g. Match Dock beside its note). */
@@ -33,23 +57,24 @@ button { flex: none; white-space: nowrap;
     background: var(--face); border: 0; font: inherit; color: inherit; min-width: 76px; height: 24px; padding: 0 12px;
     box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--lo), inset 2px 2px var(--face); }
 button:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark), inset -2px -2px var(--face), inset 2px 2px var(--lo); }
-button:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); }
+button:disabled { color: var(--disabled); text-shadow: 1px 1px var(--disabled-shadow); }
 .buttons { display: flex; justify-content: flex-end; }
 
 .row { display: flex; align-items: center; gap: 6px; }
 .row .radio + .radio { margin-left: 16px; }
 .row.height { margin-top: 4px; }
 #dockNote { margin-left: 4px; }
-input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; font: inherit; background: var(--hi);
+input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; font: inherit; color: var(--text);
+    background: var(--well); caret-color: var(--text);
     user-select: text; -webkit-user-select: text; cursor: text;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
 
 /* Win95-style list box: sunken white well, navy selection. Shows three rows before scrolling. */
-.listbox { height: 68px; overflow-y: auto; background: var(--hi); padding: 2px; outline: none;
+.listbox { height: 68px; overflow-y: auto; background: var(--well); padding: 2px; outline: none;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--dark), inset -2px -2px var(--face); }
 .listbox .item { display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 4px; }
 .listbox .item img { width: 16px; height: 16px; flex: none; }
 .listbox .item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.listbox .item.selected { background: #000080; color: var(--hi); }
-.listbox .empty { padding: 4px; color: var(--lo); }
+.listbox .item.selected { background: var(--selection); color: var(--selection-text); }
+.listbox .empty { padding: 4px; color: var(--disabled); }
 .list-buttons { margin-top: 8px; }
