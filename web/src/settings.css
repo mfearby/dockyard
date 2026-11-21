@@ -1,4 +1,7 @@
 :root {
+    /* Tells WebKit which style to use for the controls it draws itself: the height box's up/down arrows and
+       the list boxes' scroll bars. */
+    color-scheme: light;
     /* Light theme. --hi/--lo/--dark are the bevel's highlight, inner shadow and outer shadow; --well is the
        inside of list boxes, text boxes and checkboxes; --text is labels and glyphs (ticks, radio dots). */
     --face: #c0c0c0;
@@ -15,6 +18,7 @@
 }
 /* Dark theme, matching the taskbar's. Set on <html> so the area outside the body changes too. */
 :root.dark {
+    color-scheme: dark;
     --face: #2b2b2b;
     --hi: #5a5a5a;
     --lo: #161616;
