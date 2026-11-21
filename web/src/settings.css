@@ -12,7 +12,9 @@ body { margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 12p
 
 fieldset { margin: 0; padding: 10px 12px 12px; border: 0;
     box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--hi), inset -2px -2px var(--lo); }
-legend { padding: 0 4px; }
+/* Like a Windows 95 group box: the label sits on the frame's top edge with the window colour behind it,
+   so the frame line stops either side of it. */
+legend { padding: 0 5px; margin-left: -2px; background: var(--face); position: relative; }
 
 .check, .radio { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .check input, .radio input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; flex: none;
@@ -26,7 +28,9 @@ legend { padding: 0 4px; }
 .note { margin: 2px 0 8px 21px; color: #333; }
 .note p { margin: 0 0 6px; line-height: 1.4; }
 
-button { background: var(--face); border: 0; font: inherit; color: inherit; min-width: 76px; height: 24px; padding: 0 10px;
+/* Buttons keep their label on one line and don't shrink when a row is crowded (e.g. Match Dock beside its note). */
+button { flex: none; white-space: nowrap;
+    background: var(--face); border: 0; font: inherit; color: inherit; min-width: 76px; height: 24px; padding: 0 12px;
     box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--lo), inset 2px 2px var(--face); }
 button:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark), inset -2px -2px var(--face), inset 2px 2px var(--lo); }
 button:disabled { color: var(--lo); text-shadow: 1px 1px var(--hi); }
