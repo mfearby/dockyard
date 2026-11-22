@@ -202,7 +202,7 @@ final class MenuTarget: NSObject {
 
 // MARK: - App delegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, WKScriptMessageHandler {
     private var panel: BarPanel!
     private var webView: BarWebView!
     private var tooltips: TooltipController!
@@ -216,6 +216,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     private var iconCache: [String: String] = [:]
     private var lastSent: [AppEntry]?
     private var quickLaunchItems: [AppSummary] = []
+    /// The button whose window menu last closed, and when. A click on that button straight after the menu closes
+    /// is the click that closed it, so it shouldn't reopen it.
+    private var windowMenuClosed: (buttonID: String, time: Date)?
+    private var windowMenuButton: String?
     private var windowTimer: Timer?
     private lazy var windowManager = WindowManager { [weak self] in self?.fittingArea() }
     private let windowRegistry = WindowRegistry<WindowKey>()
@@ -457,6 +461,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
            let app = NSRunningApplication(processIdentifier: window.pid) {
             AXWindows.raise(window.key.element, of: app)
         } else if let app = NSRunningApplication.runningApplications(withBundleIdentifier: parsed.bundleId).first {
+            if let closed = windowMenuClosed, closed.buttonID == buttonID, Date().timeIntervalSince(closed.time) < 0.4 {
+                windowMenuClosed = nil
+                return
+            }
+            let isFront = app.processIdentifier == NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let windows = isFront && AXIsProcessTrusted() ? AXWindows.list(pid: app.processIdentifier) ?? [] : []
+            if AppButtonClick.action(isFrontmost: isFront, windowCount: windows.count) == .showWindowMenu {
+                showWindowMenu(app: app, windows: windows, buttonID: buttonID)
+                return
+            }
             if app.isHidden { app.unhide() }
             app.activate(options: [.activateAllWindows])
         }
@@ -701,6 +715,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         quit.target = NSApp
         menu.addItem(quit)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    // MARK: Window menu (app buttons, with windows grouped)
+
+    /// Lists the app's windows in a menu just above its button. Choosing one brings it to the front; Escape or a
+    /// click anywhere else (including on the button again) closes the menu.
+    private func showWindowMenu(app: NSRunningApplication, windows: [WindowInfo], buttonID: String) {
+        // Keep a stable order (first seen), rather than Accessibility's front-to-back order.
+        let ordered = windowRegistry.update(pid: app.processIdentifier, keys: windows.map(\.key))
+        let titles = Dictionary(windows.map { ($0.key, $0.title) }, uniquingKeysWith: { first, _ in first })
+        let focused = AXWindows.focused(pid: app.processIdentifier)
+        let name = app.localizedName ?? app.bundleIdentifier ?? ""
+
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        for window in ordered {
+            let item = NSMenuItem(title: WindowLabel.menuTitle(title: titles[window.key] ?? nil, appName: name),
+                                  action: #selector(raiseWindowFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = MenuTarget(app: app, window: window.key.element)
+            if window.key == focused { item.state = .on }
+            menu.addItem(item)
+        }
+
+        // Screen coordinates; the point is the menu's top-left, so this puts its bottom edge on the bar's top
+        // and its left edge in line with the button's.
+        let left = tooltips.target(id: buttonID).map { panel.frame.minX + CGFloat($0.left) } ?? NSEvent.mouseLocation.x
+        windowMenuButton = buttonID
+        menu.popUp(positioning: nil, at: NSPoint(x: left, y: panel.frame.maxY + menu.size.height), in: nil)
+    }
+
+    @objc private func raiseWindowFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget, let window = target.window else { return }
+        AXWindows.raise(window, of: target.app)
+        refreshSoon()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard let buttonID = windowMenuButton else { return }
+        windowMenuButton = nil
+        windowMenuClosed = (buttonID, Date())
     }
 
     // MARK: Taskbar button menu

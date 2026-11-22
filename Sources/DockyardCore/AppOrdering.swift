@@ -43,6 +43,20 @@ public struct AppSnapshot: Equatable {
     }
 }
 
+/// What clicking an app's taskbar button does (window buttons always raise their window).
+public enum AppButtonClick: Equatable {
+    /// Bring the app to the front.
+    case activate
+    /// Show a menu of the app's windows above the button.
+    case showWindowMenu
+
+    /// The first click on an app that isn't in front just brings it forward. Once it's in front, a click lists
+    /// its windows, but only when there are at least two to choose from.
+    public static func action(isFrontmost: Bool, windowCount: Int) -> AppButtonClick {
+        isFrontmost && windowCount >= 2 ? .showWindowMenu : .activate
+    }
+}
+
 public enum AppFilter {
     /// Whether a running app belongs on the bar: ordinary apps with a bundle ID, excluding Dockyard itself,
     /// then narrowed by the user's preferences.

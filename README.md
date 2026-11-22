@@ -5,13 +5,16 @@ every running app (or every window) its own button with an icon and a text label
 
 ## Screenshots
 
-The taskbar in the light and dark themes:
+The taskbar in the dark theme:
 
 <p>
-  <img src="images/light_taskbar.png" width="688" alt="Dockyard taskbar in the light theme: the menu button, Quick Launch icons for Screenshot, Calendar and Notes, and buttons for open windows">
+  <img src="images/dark_taskbar.png" width="688" alt="Dockyard taskbar in the dark theme with the menu button, Quick Launch icons for Screenshot, Calendar and Notes, and buttons for open windows">
 </p>
+
+The taskbar in the light theme with 'Show each window as a separate button' turned off:
+
 <p>
-  <img src="images/dark_taskbar.png" width="688" alt="Dockyard taskbar in the dark theme">
+  <img src="images/light_taskbar.png" width="688" alt="Dockyard taskbar in the light theme with a menu above the Kiro taskbar button showing available windows">
 </p>
 
 The Options window, in the dark theme (left) and the light theme (right):
@@ -31,7 +34,8 @@ opens it.
 
 ## Features
 
-- A button for each running app, or optionally for each window, labelled with the window's title.
+- A button for each running app, or optionally for each window, labelled with the window's title. With windows
+  grouped, clicking an app's button when it's already in front lists its windows to choose from (if there are two or more).
 - Drag buttons to reorder them. The order is remembered.
 - Badges on buttons, copied from the apps' Dock icons (such as unread mail counts).
 - Right-click a button to minimise, maximise or close its window, or quit the app.

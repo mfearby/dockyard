@@ -70,6 +70,11 @@ final class TooltipController: NSResponder {
         TooltipTarget.hit(Double(x), in: targets)
     }
 
+    /// The element with this ID, e.g. to place a menu above a taskbar button.
+    func target(id: String) -> TooltipTarget? {
+        targets.first { $0.id == id }
+    }
+
     func setTargets(_ targets: [TooltipTarget]) {
         self.targets = targets
         // The buttons changed under a still pointer: follow whatever is there now.

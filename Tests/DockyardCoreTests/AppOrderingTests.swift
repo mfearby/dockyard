@@ -42,6 +42,22 @@ struct AppOrderingTests {
     }
 }
 
+struct AppButtonClickTests {
+    @Test func firstClickOnABackgroundAppJustBringsItForward() {
+        #expect(AppButtonClick.action(isFrontmost: false, windowCount: 3) == .activate)
+    }
+
+    @Test func clickingTheFrontAppListsItsWindows() {
+        #expect(AppButtonClick.action(isFrontmost: true, windowCount: 2) == .showWindowMenu)
+        #expect(AppButtonClick.action(isFrontmost: true, windowCount: 5) == .showWindowMenu)
+    }
+
+    @Test func noMenuForOneWindowOrNone() {
+        #expect(AppButtonClick.action(isFrontmost: true, windowCount: 1) == .activate)
+        #expect(AppButtonClick.action(isFrontmost: true, windowCount: 0) == .activate)
+    }
+}
+
 struct AppFilterTests {
     private let me = "local.dockyard"
 

@@ -167,6 +167,14 @@ public enum WindowLabel {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? appName : trimmed
     }
+
+    /// A window's entry in an app button's window menu: its label, shortened so a long title doesn't make the
+    /// menu very wide.
+    public static func menuTitle(title: String?, appName: String, maxLength: Int = 80) -> String {
+        let label = name(title: title, appName: appName)
+        guard label.count > maxLength, maxLength > 1 else { return label }
+        return String(label.prefix(maxLength - 1)) + "\u{2026}"
+    }
 }
 
 /// An app's name and icon, for listing apps that may not be running (the Options lists and Quick Launch).

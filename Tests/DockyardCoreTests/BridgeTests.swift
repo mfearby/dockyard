@@ -151,6 +151,15 @@ struct WindowLabelTests {
         #expect(WindowLabel.name(title: "dockyard \u{2013} main.swift", appName: "IntelliJ IDEA") == "dockyard \u{2013} main.swift")
     }
 
+    @Test func menuTitlesAreShortenedWhenLong() {
+        #expect(WindowLabel.menuTitle(title: "dockyard", appName: "IntelliJ IDEA") == "dockyard")
+        #expect(WindowLabel.menuTitle(title: nil, appName: "Notes") == "Notes")
+        let long = String(repeating: "a", count: 100)
+        let short = WindowLabel.menuTitle(title: long, appName: "App", maxLength: 10)
+        #expect(short == String(repeating: "a", count: 9) + "\u{2026}")
+        #expect(short.count == 10)
+    }
+
     @Test func untitledWindowsUseTheAppName() {
         #expect(WindowLabel.name(title: nil, appName: "Notes") == "Notes")
         #expect(WindowLabel.name(title: "   ", appName: "Notes") == "Notes")
