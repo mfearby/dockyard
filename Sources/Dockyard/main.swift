@@ -216,6 +216,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var iconCache: [String: String] = [:]
     private var lastSent: [AppEntry]?
     private var quickLaunchItems: [AppSummary] = []
+    /// Notices apps appearing (including ones still starting) and quitting, without waiting for the window timer.
+    private var runningAppsObservation: NSKeyValueObservation?
+    private var loadingRefreshScheduled = false
+    private let launchTracker = LaunchTracker()
     /// The button whose window menu last closed, and when. A click on that button straight after the menu closes
     /// is the click that closed it, so it shouldn't reopen it.
     private var windowMenuClosed: (buttonID: String, time: Date)?
@@ -328,6 +332,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 self?.pushState()
             }
         }
+        runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.pushState() }
+        }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in
@@ -373,13 +380,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return url
     }
 
-    /// Each regular app's windows, read once per refresh. Empty when no preference needs them or
-    /// Accessibility isn't granted.
+    /// Regular apps' windows, read once per refresh: every app's when a preference needs them, otherwise just
+    /// those still starting (for the hourglass). Empty without Accessibility access.
     private func windowLists() -> [pid_t: [WindowInfo]] {
         let prefs = config.preferences
-        guard prefs.hideAppsWithoutWindows || prefs.separateWindows, AXIsProcessTrusted() else { return [:] }
+        guard AXIsProcessTrusted() else { return [:] }
+        let needAll = prefs.hideAppsWithoutWindows || prefs.separateWindows
         var lists: [pid_t: [WindowInfo]] = [:]
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && !app.isTerminated {
+            guard needAll || launchTracker.inLaunchPhase(pid: app.processIdentifier, launchDate: app.launchDate)
+            else { continue }
             if let list = AXWindows.list(pid: app.processIdentifier) { lists[app.processIdentifier] = list }
         }
         return lists
@@ -408,14 +418,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             }
             let snapshot = AppSnapshot(bundleId: app.bundleIdentifier, isRegular: isRegular,
                                        isTerminated: app.isTerminated, isHidden: app.isHidden,
-                                       windowCount: windowCount)
+                                       windowCount: windowCount, isLoading: isLoading(app, windowLists: windowLists))
             return AppFilter.shouldShow(snapshot, preferences: prefs, ownBundleId: me)
         }
         return AppOrdering.sorted(apps, by: config.order) { $0.bundleIdentifier! }
     }
 
+    /// Still starting: not yet finished launching, or (when windows can be read) without its first window yet.
+    private func isLoading(_ app: NSRunningApplication, windowLists: [pid_t: [WindowInfo]]) -> Bool {
+        launchTracker.isLoading(pid: app.processIdentifier, finishedLaunching: app.isFinishedLaunching,
+                                windowCount: windowLists[app.processIdentifier]?.count,
+                                windowsVisible: AXIsProcessTrusted(), launchDate: app.launchDate)
+    }
+
     /// The bar's buttons: one per app, or with "separate windows" on, one per window for apps that have any.
     private func entries() -> [AppEntry] {
+        launchTracker.update(pids: Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier)))
         let lists = windowLists()
         let separate = config.preferences.separateWindows && AXIsProcessTrusted()
         let front = NSWorkspace.shared.frontmostApplication
@@ -429,8 +447,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let icon = iconDataURL(for: app, id: id)
             let isFront = app.processIdentifier == front?.processIdentifier
             let badge = badges[id]
+            let loading = isLoading(app, windowLists: lists)
             guard separate, let list = lists[app.processIdentifier], !list.isEmpty else {
-                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront, badge: badge)]
+                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront, badge: badge, loading: loading)]
             }
             let titles = Dictionary(list.map { ($0.key, $0.title) }, uniquingKeysWith: { first, _ in first })
             let focused = isFront ? AXWindows.focused(pid: app.processIdentifier) : nil
@@ -439,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 // The tooltip repeats the full label, which the button may have cut short.
                 return AppEntry(id: ButtonID.window(id, serial: window.serial), bundleId: id,
                                 name: WindowLabel.name(title: title, appName: name),
-                                icon: icon, active: window.key == focused, badge: badge)
+                                icon: icon, active: window.key == focused, badge: badge, loading: loading)
             }
         }
     }
@@ -447,6 +466,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// Sends the buttons to the bar. Skips the send when nothing changed, since the window timer calls this every second.
     private func pushState(force: Bool = false) {
         let apps = entries()
+        // Check again shortly while an app is starting, so its hourglass goes as soon as it has finished launching.
+        if apps.contains(where: \.loading), !loadingRefreshScheduled {
+            loadingRefreshScheduled = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.loadingRefreshScheduled = false
+                self?.pushState()
+            }
+        }
         guard force || apps != lastSent else { return }
         lastSent = apps
         webView.evaluateJavaScript(

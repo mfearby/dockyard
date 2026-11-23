@@ -148,9 +148,11 @@ public struct AppEntry: Codable, Equatable {
     public var active: Bool
     /// The app's Dock badge (e.g. an unread count), or nil for none. Omitted from the JSON when nil.
     public var badge: String?
+    /// The app is still starting up (see `LaunchTracker`); the bar shows an hourglass and a dimmed label.
+    public var loading: Bool
 
     public init(id: String? = nil, bundleId: String, name: String, title: String? = nil, icon: String, active: Bool,
-                badge: String? = nil) {
+                badge: String? = nil, loading: Bool = false) {
         self.id = id ?? ButtonID.app(bundleId)
         self.bundleId = bundleId
         self.name = name
@@ -158,6 +160,7 @@ public struct AppEntry: Codable, Equatable {
         self.icon = icon
         self.active = active
         self.badge = badge
+        self.loading = loading
     }
 }
 

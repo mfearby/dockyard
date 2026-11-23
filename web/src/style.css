@@ -56,6 +56,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
   text-align: center; box-shadow: 0 0 0 1px var(--face); max-width: 30px; overflow: hidden; text-overflow: ellipsis; }
 .task.dragging { transition: none; z-index: 10; opacity: 0.85; }
 
+/* An app that's still starting: a turning hourglass over the icon's bottom-right corner and a dimmed label. */
+.task.loading .label { opacity: 0.5; }
+.task .hourglass { position: absolute; right: -4px; bottom: -3px; width: 10px; height: 14px; display: flex;
+  animation: hourglass-turn 1.6s ease-in-out infinite; }
+@keyframes hourglass-turn { 0%, 70% { transform: rotate(0deg); } 100% { transform: rotate(180deg); } }
+
 /* Quick Launch: bare icons with no button face, between the menu button and the taskbar buttons.
    The area and its separator disappear when the list is empty. */
 #quick { flex: none; display: flex; align-items: center; gap: 2px; }

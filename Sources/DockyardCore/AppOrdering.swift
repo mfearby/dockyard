@@ -32,14 +32,17 @@ public struct AppSnapshot: Equatable {
     public var isHidden: Bool
     /// Number of open windows. Only needed when `hideAppsWithoutWindows` is on, so callers can skip counting otherwise.
     public var windowCount: Int?
+    /// Still starting up (see `LaunchTracker`): the button stays, with an hourglass, until its first window appears.
+    public var isLoading: Bool
 
     public init(bundleId: String?, isRegular: Bool = true, isTerminated: Bool = false,
-                isHidden: Bool = false, windowCount: Int? = nil) {
+                isHidden: Bool = false, windowCount: Int? = nil, isLoading: Bool = false) {
         self.bundleId = bundleId
         self.isRegular = isRegular
         self.isTerminated = isTerminated
         self.isHidden = isHidden
         self.windowCount = windowCount
+        self.isLoading = isLoading
     }
 }
 
@@ -68,6 +71,8 @@ public enum AppFilter {
             // so the window check below would otherwise remove them too.
             return !preferences.hideHiddenApps
         }
+        // An app that's still starting has no windows yet; keep its button so it doesn't vanish and reappear.
+        if app.isLoading { return true }
         if preferences.hideAppsWithoutWindows, let count = app.windowCount, count == 0 {
             return false
         }

@@ -193,6 +193,7 @@ struct NativeMessageTests {
         #expect(apps[0]["bundleId"] as? String == "com.apple.Notes")
         #expect(apps[0]["title"] as? String == "Notes")
         #expect(apps[0]["badge"] == nil)  // omitted when there's no badge
+        #expect(apps[0]["loading"] as? Bool == false)
         #expect(apps[0]["name"] as? String == "Notes")
         #expect(apps[0]["icon"] as? String == "data:image/png;base64,AA==")
         #expect(apps[0]["active"] as? Bool == true)
@@ -224,6 +225,12 @@ struct NativeMessageTests {
         #expect(details[0]["bundleId"] as? String == "com.spotify.client")
         #expect(details[0]["name"] as? String == "Spotify")
         #expect(details[0]["icon"] as? String == "data:,")
+    }
+
+    @Test func loadingIsSent() throws {
+        let entry = AppEntry(bundleId: "com.jetbrains.intellij", name: "IntelliJ IDEA", icon: "", active: false, loading: true)
+        let apps = try #require(try payload(NativeMessage.stateScript(apps: [entry]))["apps"] as? [[String: Any]])
+        #expect(apps[0]["loading"] as? Bool == true)
     }
 
     @Test func badgesAreSentWhenPresent() throws {

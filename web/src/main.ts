@@ -35,7 +35,7 @@ let pending: AppInfo[] | null = null;
 function render() {
     tasksEl.replaceChildren(...apps.map((a) => {
         const el = document.createElement('div');
-        el.className = 'task' + (a.active ? ' active' : '');
+        el.className = 'task' + (a.active ? ' active' : '') + (a.loading ? ' loading' : '');
         el.dataset.id = a.id;
         el.dataset.tip = a.title;
         const icon = document.createElement('span');
@@ -43,6 +43,7 @@ function render() {
         const img = document.createElement('img');
         img.src = a.icon;
         icon.append(img);
+        if (a.loading) icon.append(hourglass());
         if (a.badge) {
             const badge = document.createElement('span');
             badge.className = 'badge';
@@ -83,6 +84,19 @@ quickEl.addEventListener('click', (e) => {
     const el = (e.target as HTMLElement).closest<HTMLElement>('.launcher');
     if (el?.dataset.bundleId) send({ type: 'launch', bundleId: el.dataset.bundleId });
 });
+
+/** A small hourglass shown over a starting app's icon. Symmetrical, so its half-turn animation loops smoothly. */
+function hourglass(): HTMLElement {
+    const el = document.createElement('span');
+    el.className = 'hourglass';
+    el.innerHTML = '<svg viewBox="0 0 10 14" width="10" height="14" aria-hidden="true">'
+        + '<rect x="0.5" y="0.5" width="9" height="1.5" fill="#000"/>'
+        + '<rect x="0.5" y="12" width="9" height="1.5" fill="#000"/>'
+        + '<path d="M1.5 2 H8.5 L5.6 7 L8.5 12 H1.5 L4.4 7 Z" fill="#fff" stroke="#000" stroke-width="0.8"/>'
+        + '<path d="M3 3.2 H7 L5 6 Z M3 10.8 H7 L5 8 Z" fill="#c9971c"/>'
+        + '</svg>';
+    return el;
+}
 
 // Buttons shrink and grow with the window, e.g. when the bar is retracted or the screen changes.
 new ResizeObserver(sendTooltips).observe(tasksEl);

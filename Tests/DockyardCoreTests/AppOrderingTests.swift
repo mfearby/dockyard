@@ -110,6 +110,19 @@ struct AppFilterTests {
         #expect(shows(AppSnapshot(bundleId: "com.apple.finder", windowCount: 1), prefs))
     }
 
+    @Test func loadingAppsStayEvenWithoutWindows() {
+        let prefs = Preferences(hideAppsWithoutWindows: true)
+        #expect(shows(AppSnapshot(bundleId: "com.jetbrains.intellij", windowCount: 0, isLoading: true), prefs))
+        #expect(!shows(AppSnapshot(bundleId: "com.jetbrains.intellij", windowCount: 0, isLoading: false), prefs))
+    }
+
+    @Test func loadingDoesNotOverrideHiddenOrExcluded() {
+        let hidden = AppSnapshot(bundleId: "com.apple.Notes", isHidden: true, isLoading: true)
+        #expect(!shows(hidden, Preferences(hideHiddenApps: true)))
+        let excluded = AppSnapshot(bundleId: "com.spotify.client", isLoading: true)
+        #expect(!shows(excluded, Preferences(excludedApps: ["com.spotify.client"])))
+    }
+
     @Test func unknownWindowCountKeepsTheApp() {
         #expect(shows(AppSnapshot(bundleId: "com.apple.finder", windowCount: nil), Preferences(hideAppsWithoutWindows: true)))
     }

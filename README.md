@@ -38,6 +38,7 @@ opens it.
   grouped, clicking an app's button when it's already in front lists its windows to choose from (if there are two or more).
 - Drag buttons to reorder them. The order is remembered.
 - Badges on buttons, copied from the apps' Dock icons (such as unread mail counts).
+- An hourglass and a dimmed label on the button of an app that's still starting up.
 - Right-click a button to minimise, maximise or close its window, or quit the app.
 - A Quick Launch area of app icons next to the menu button.
 - A menu button with Downloads, Bin and Finder, as on the Dock.

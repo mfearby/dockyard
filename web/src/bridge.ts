@@ -10,6 +10,8 @@ export interface AppInfo {
     title: string;
     /** The app's Dock badge, such as an unread count. Absent when there's none. */
     badge?: string;
+    /** The app is still starting up. */
+    loading?: boolean;
     icon: string;
     active: boolean;
 }
