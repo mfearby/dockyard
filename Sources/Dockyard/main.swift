@@ -208,6 +208,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var tooltips: TooltipController!
     private var settingsWindow: NSWindow?
     private var settingsWebView: WKWebView?
+    private var aboutWindow: NSWindow?
+    private var aboutWebView: WKWebView?
     /// The app that was frontmost before Options opened, so focus can go back to it on close.
     private var previousApp: NSRunningApplication?
     private var webDir: URL?
@@ -546,8 +548,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    // MARK: About window
+
+    @objc private func openAbout() {
+        if aboutWindow == nil {
+            let view = makeWebView(QuietWebView.self)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 380, height: 300),  // the page resizes it to fit
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false)
+            window.title = "About Dockyard"
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            window.delegate = self
+            window.center()
+            load("about.html", into: view)
+            aboutWindow = window
+            aboutWebView = view
+        }
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
+        NSApp.activate()
+        aboutWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func sendAbout() {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? info?["CFBundleVersion"] as? String ?? "dev"
+        aboutWindow?.appearance = NSAppearance(named: config.preferences.theme == .dark ? .darkAqua : .aqua)
+        aboutWebView?.evaluateJavaScript(
+            NativeMessage.aboutScript(version: version, theme: config.preferences.theme), completionHandler: nil)
+    }
+
     /// Refresh when Options comes back to the front, e.g. after granting Accessibility access in System Settings.
     func windowDidBecomeKey(_ notification: Notification) {
+        if (notification.object as? NSWindow) === aboutWindow {
+            sendAbout()
+            return
+        }
         sendSettings()
         updateWindowManager()
         updateWindowTimer()  // Accessibility may have just been granted, which turns on badge polling
@@ -687,8 +726,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     /// Sets the Options window's content height, keeping its top edge where it is.
-    private func resizeSettings(to height: Double) {
-        guard let window = settingsWindow else { return }
+    /// Sets a dialog window's content height (Options or About, whichever sent it), keeping its top edge in place.
+    private func resize(_ window: NSWindow?, toHeight height: Double) {
+        guard let window else { return }
         let content = window.contentRect(forFrameRect: window.frame)
         let h = CGFloat(min(max(height, 120), 900))
         guard abs(content.height - h) >= 1 else { return }
@@ -697,6 +737,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     func windowWillClose(_ notification: Notification) {
+        // Give focus back to the app that was in front, unless the other Dockyard window is still open.
+        let closing = notification.object as? NSWindow
+        let otherOpen = [settingsWindow, aboutWindow].contains { $0 !== closing && $0?.isVisible == true }
+        guard !otherOpen else { return }
         previousApp?.activate()
         previousApp = nil
     }
@@ -746,14 +790,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         case .chooseApp(let list):
             if list == .menuFolders { chooseFolders() } else { showAppMenu(for: list) }
         case .resizeSettings(let height):
-            resizeSettings(to: height)
+            resize(message.webView?.window, toHeight: height)
         case .closeSettings:
-            settingsWindow?.close()
+            message.webView?.window?.close()
+        case .getAbout:
+            sendAbout()
+        case .openLink(let link):
+            NSWorkspace.shared.open(link.url)
         }
     }
 
     private func showMenu() {
         let menu = NSMenu()
+        let quit = NSMenuItem(title: "Quit Dockyard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        quit.target = NSApp
+        menu.addItem(quit)
+        let about = NSMenuItem(title: "About Dockyard", action: #selector(openAbout), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+        menu.addItem(.separator())
         let options = NSMenuItem(title: "Options…", action: #selector(openSettings), keyEquivalent: "")
         options.target = self
         menu.addItem(options)
@@ -796,11 +851,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         addMenuItem(to: menu, title: "Bin", action: #selector(openBin), icon: NSImage(named: NSImage.trashEmptyName))
         addMenuItem(to: menu, title: "Finder", action: #selector(openFinder),
                     icon: finder.map { NSWorkspace.shared.icon(forFile: $0.path) })
-        menu.addItem(.separator())
-
-        let quit = NSMenuItem(title: "Quit Dockyard", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
-        quit.target = NSApp
-        menu.addItem(quit)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 

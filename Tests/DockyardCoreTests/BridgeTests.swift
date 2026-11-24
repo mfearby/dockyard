@@ -33,6 +33,29 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "chooseApp"]) == nil)
     }
 
+    @Test func parsesAboutMessages() {
+        #expect(UIMessage(body: ["type": "getAbout"]) == .getAbout)
+        #expect(UIMessage(body: ["type": "openLink", "link": "repository"]) == .openLink(.repository))
+        #expect(UIMessage(body: ["type": "openLink", "link": "licence"]) == .openLink(.licence))
+        // Only the fixed links: not arbitrary URLs.
+        #expect(UIMessage(body: ["type": "openLink", "link": "https://example.com"]) == nil)
+        #expect(UIMessage(body: ["type": "openLink"]) == nil)
+    }
+
+    @Test func aboutLinksAreHTTPS() {
+        for link in AboutLink.allCases { #expect(link.url.scheme == "https") }
+        #expect(AboutLink.repository.url.absoluteString == "https://github.com/mfearby/dockyard")
+    }
+
+    @Test func aboutHasTheShapeTheUIExpects() throws {
+        let script = NativeMessage.aboutScript(version: "0.1", theme: .dark)
+        let json = script.dropFirst("window.onNative && window.onNative(".count).dropLast()
+        let msg = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        #expect(msg["type"] as? String == "about")
+        #expect(msg["version"] as? String == "0.1")
+        #expect(msg["theme"] as? String == "dark")
+    }
+
     @Test func parsesLaunch() {
         #expect(UIMessage(body: ["type": "launch", "bundleId": "com.apple.screenshot.launcher"])
             == .launch(bundleId: "com.apple.screenshot.launcher"))

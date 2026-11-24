@@ -20,8 +20,14 @@ public enum UIMessage: Equatable {
     case requestAccessibility
     /// Show the menu of apps to add to one of the Options window's app lists.
     case chooseApp(AppList)
+    /// Sizes the window the message came from (Options or About) to its page's height.
     case resizeSettings(height: Double)
+    /// Closes the window the message came from (Options or About).
     case closeSettings
+    // From the About window
+    case getAbout
+    /// Open one of the About window's links in the browser. Only these fixed links can be opened.
+    case openLink(AboutLink)
 
     /// Parses a message body as WebKit delivers it (a JS object becomes `[String: Any]`). Returns nil for anything malformed.
     public init?(body: Any) {
@@ -76,6 +82,11 @@ public enum UIMessage: Equatable {
             self = .resizeSettings(height: height)
         case "closeSettings":
             self = .closeSettings
+        case "getAbout":
+            self = .getAbout
+        case "openLink":
+            guard let link = (dict["link"] as? String).flatMap(AboutLink.init(rawValue:)) else { return nil }
+            self = .openLink(link)
         default:
             return nil
         }
@@ -196,6 +207,22 @@ public struct AppSummary: Codable, Equatable {
     }
 }
 
+/// The links in the About window. The page names a link and the app opens its fixed URL, so the page can't ask
+/// for anything else to be opened.
+public enum AboutLink: String, Equatable, CaseIterable {
+    case repository
+    case kiro
+    case licence
+
+    public var url: URL {
+        switch self {
+        case .repository: URL(string: "https://github.com/mfearby/dockyard")!
+        case .kiro: URL(string: "https://kiro.dev")!
+        case .licence: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
+        }
+    }
+}
+
 /// A folder's name and icon, for the Options window's list of menu folders.
 public struct FolderSummary: Codable, Equatable {
     public var path: String
@@ -250,6 +277,17 @@ public enum NativeMessage {
         script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight,
                         excludedAppDetails: excludedAppDetails, quickLaunchDetails: quickLaunchDetails,
                         menuAppDetails: menuAppDetails, menuFolderDetails: menuFolderDetails))
+    }
+
+    private struct About: Encodable {
+        let type = "about"
+        let version: String
+        let theme: Theme
+    }
+
+    /// JavaScript that tells the About window the app's version and the theme to draw in.
+    public static func aboutScript(version: String, theme: Theme) -> String {
+        script(About(version: version, theme: theme))
     }
 
     private static func script<T: Encodable>(_ message: T) -> String {

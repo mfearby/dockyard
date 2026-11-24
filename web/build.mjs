@@ -6,6 +6,7 @@ const watch = process.argv.includes('--watch');
 const staticFiles = {
     'index.html': 'dist/index.html',
     'settings.html': 'dist/settings.html',
+    'about.html': 'dist/about.html',
     'src/style.css': 'dist/style.css',
     'src/settings.css': 'dist/settings.css',
 };
@@ -15,7 +16,7 @@ const copyStatic = () => {
     for (const [from, to] of Object.entries(staticFiles)) cpSync(from, to);
 };
 const options = {
-    entryPoints: ['src/main.ts', 'src/settings.ts'],
+    entryPoints: ['src/main.ts', 'src/settings.ts', 'src/about.ts'],
     bundle: true,
     format: 'iife',
     target: 'safari16',

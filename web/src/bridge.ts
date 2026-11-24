@@ -26,6 +26,9 @@ export type ScreenSpace = 'coverDock' | 'moveWindows';
 export type Theme = 'light' | 'dark';
 
 /** The Options window's lists, managed with Add… and Remove. All hold bundle IDs except menuFolders (paths). */
+/** The About window's links; Swift maps each to a fixed URL. */
+export type AboutLink = 'repository' | 'kiro' | 'licence';
+
 export type AppList = 'excludedApps' | 'quickLaunch' | 'menuApps' | 'menuFolders';
 
 export interface Preferences {
@@ -64,6 +67,7 @@ export interface AppSummary {
 /** Messages from Swift to the page. */
 export type NativeMsg =
     | { type: 'state'; apps: AppInfo[]; collapsed: boolean; theme: Theme; quickLaunch: AppSummary[] }
+    | { type: 'about'; version: string; theme: Theme }
     | {
           type: 'settings';
           preferences: Preferences;
@@ -95,6 +99,8 @@ export type UIMsg =
     | { type: 'setPreferences'; preferences: Preferences }
     | { type: 'requestAccessibility' }
     | { type: 'chooseApp'; list: AppList }
+    | { type: 'getAbout' }
+    | { type: 'openLink'; link: AboutLink }
     | { type: 'resizeSettings'; height: number }
     | { type: 'closeSettings' };
 

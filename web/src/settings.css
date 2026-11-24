@@ -15,6 +15,7 @@
     --selection-text: #ffffff;
     --disabled: #808080;
     --disabled-shadow: #ffffff;
+    --link: #0000ee;
 }
 /* Dark theme, matching the taskbar's. Set on <html> so the area outside the body changes too. */
 :root.dark {
@@ -30,6 +31,7 @@
     --selection-text: #ffffff;
     --disabled: #6e6e6e;
     --disabled-shadow: #161616;
+    --link: #8ab4ff;
 }
 * { box-sizing: border-box; user-select: none; -webkit-user-select: none; cursor: default; }
 html { height: 100%; background: var(--face); }
@@ -96,3 +98,18 @@ input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; fon
 .panel.inactive { visibility: hidden; }
 .intro { margin: 0; line-height: 1.4; color: var(--note); }
 .listbox.tall { height: 128px; }
+
+/* About window (about.html shares this stylesheet). */
+.about-panel { padding: 14px 16px 6px; line-height: 1.45;
+    box-shadow: inset 1px 1px var(--lo), inset -1px -1px var(--hi), inset 2px 2px var(--hi), inset -2px -2px var(--lo); }
+.about-panel p { margin: 0 0 8px; }
+.about-title { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.about-title h1 { margin: 0; font-size: 18px; }
+.about-title .about-version { margin: 0; color: var(--note); }
+/* The menu button's hamburger as a small logo. */
+.about-logo { width: 32px; height: 32px; flex: none; display: flex; align-items: center; justify-content: center;
+    background: var(--face);
+    box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--lo), inset 2px 2px var(--face); }
+.about-logo .burger { width: 16px; height: 2px; background: var(--text); box-shadow: 0 -5px var(--text), 0 5px var(--text); }
+.about-licence { color: var(--note); }
+.about a { color: var(--link); cursor: pointer; }
