@@ -19,13 +19,21 @@ function setCollapsed(value: boolean) {
 // the active app), so Swift draws them instead, using the positions sent here.
 function sendTooltips() {
     const els = Array.from(document.querySelectorAll<HTMLElement>('[data-tip]'));
-    send({
-        type: 'setTooltips',
-        tooltips: els.map((el, i) => {
-            const r = el.getBoundingClientRect();
-            return { id: el.dataset.id ?? el.id ?? String(i), text: el.dataset.tip ?? '', left: r.left, width: r.width };
-        }),
+    const tooltips = els.map((el, i) => {
+        const r = el.getBoundingClientRect();
+        return { id: el.dataset.id ?? el.id ?? String(i), text: el.dataset.tip ?? '', left: r.left, width: r.width };
     });
+    // Stretch the first and last visible elements to the bar's ends, matching clickableAt, so hovering or
+    // right-clicking in the very corners uses the menu button and the toggle.
+    const visible = tooltips.filter((t) => t.width > 0).sort((a, b) => a.left - b.left);
+    if (visible.length > 0) {
+        const first = visible[0];
+        first.width += first.left;
+        first.left = 0;
+        const last = visible[visible.length - 1];
+        last.width = window.innerWidth - last.left;
+    }
+    send({ type: 'setTooltips', tooltips });
 }
 
 let apps: AppInfo[] = [];
@@ -80,10 +88,32 @@ function renderQuickLaunch(items: AppSummary[]) {
     sendTooltips();
 }
 
-quickEl.addEventListener('click', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('.launcher');
-    if (el?.dataset.bundleId) send({ type: 'launch', bundleId: el.dataset.bundleId });
-});
+/**
+ * The clickable element in the bar's column at `x`: the menu button, a Quick Launch icon, a taskbar button or the
+ * toggle. The bar is a single row, so only x matters, and a click in the margin above or below a button counts
+ * as a click on it. Clicks beyond the first or last element (the bar's corners) count for that element, so
+ * throwing the pointer into a bottom corner hits the menu button or the toggle. Hidden elements (e.g. while the
+ * bar is retracted) have no width and are skipped.
+ */
+function clickableAt(x: number): HTMLElement | null {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('#start, .launcher, .task, #toggle'))
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.width > 0);
+    if (els.length === 0) return null;
+    const hit = els.find(({ r }) => x >= r.left && x < r.right);
+    if (hit) return hit.el;
+    if (x < els[0].r.left) return els[0].el;
+    if (x >= els[els.length - 1].r.right) return els[els.length - 1].el;
+    return null;
+}
+
+/** The element pressed, so a click only counts if it's released over the same one; drawn pressed meanwhile. */
+let pressed: HTMLElement | null = null;
+
+function release() {
+    pressed?.classList.remove('pressed');
+    pressed = null;
+}
 
 /** A small hourglass shown over a starting app's icon. Symmetrical, so its half-turn animation loops smoothly. */
 function hourglass(): HTMLElement {
@@ -111,11 +141,42 @@ onNative((msg) => {
     render();
 });
 
-// Pointer-based drag to reorder. A press that moves < 5px counts as a click.
-tasksEl.addEventListener('pointerdown', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('.task');
-    // Control-click is a right-click on macOS; leave it to the contextmenu handler below.
-    if (!el || e.button !== 0 || e.ctrlKey) return;
+document.addEventListener('pointerdown', (e) => {
+    // Control-click is a right-click on macOS, handled natively.
+    if (e.button !== 0 || e.ctrlKey) return;
+    const el = clickableAt(e.clientX);
+    if (!el) return;
+    release();
+    pressed = el;
+    if (el.classList.contains('task')) {
+        startTaskPress(el, e);
+    } else {
+        el.classList.add('pressed');
+    }
+});
+
+document.addEventListener('pointerup', () => {
+    if (pressed && !pressed.classList.contains('task')) pressed.classList.remove('pressed');
+});
+document.addEventListener('pointercancel', release);
+
+// The menu button, Quick Launch icons and the toggle act on click; taskbar buttons act in startTaskPress.
+document.addEventListener('click', (e) => {
+    const el = clickableAt(e.clientX);
+    const wasPressed = pressed;
+    release();
+    if (!el || el !== wasPressed || el.classList.contains('task')) return;
+    if (el.id === 'start') {
+        send({ type: 'menu' });
+    } else if (el.id === 'toggle') {
+        toggleCollapsed();
+    } else if (el.dataset.bundleId) {
+        send({ type: 'launch', bundleId: el.dataset.bundleId });
+    }
+});
+
+// Pointer-based drag to reorder a taskbar button. A press that moves < 5px counts as a click.
+function startTaskPress(el: HTMLElement, e: PointerEvent) {
     const items = Array.from(tasksEl.children) as HTMLElement[];
     const from = items.indexOf(el);
     const step = el.offsetWidth + GAP;
@@ -160,20 +221,18 @@ tasksEl.addEventListener('pointerdown', (e) => {
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
     el.addEventListener('pointercancel', onUp);
-});
-
-document.getElementById('start')!.addEventListener('click', () => send({ type: 'menu' }));
+}
 
 // Right-clicks are handled natively (BarWebView in main.swift), which shows Dockyard's own menus.
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
-toggleEl.addEventListener('click', () => {
+function toggleCollapsed() {
     // When retracting, hide the buttons before Swift shrinks the window, so the narrow strip never
     // shows a sliver of the menu button. When expanding, wait for Swift to widen the window first;
     // the state message it sends back removes the class.
     const next = !collapsed;
     if (next) setCollapsed(true);
     send({ type: 'setCollapsed', collapsed: next });
-});
+}
 
 send({ type: 'ready' });

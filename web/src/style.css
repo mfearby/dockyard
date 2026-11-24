@@ -39,7 +39,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
 /* Square menu button with a three-line "hamburger" icon, drawn as one bar plus two shadow copies. */
 #start { flex: none; width: var(--button-h); padding: 0; justify-content: center; }
 .burger { width: 14px; height: 2px; background: var(--text); box-shadow: 0 -4px var(--text), 0 4px var(--text); }
-.task.active, #start:active {
+.task.active, #start.pressed {
   box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark),
               inset -2px -2px var(--face), inset 2px 2px var(--lo);
   background: repeating-conic-gradient(var(--mesh-a) 0% 25%, var(--mesh-b) 0% 50%) 0 0 / 2px 2px;
@@ -69,14 +69,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--face);
 .launcher { display: flex; align-items: center; justify-content: center;
   width: calc(var(--icon) + 6px); height: var(--button-h); }
 .launcher img { width: var(--icon); height: var(--icon); pointer-events: none; }
-.launcher:active img { transform: translate(1px, 1px); }
+.launcher.pressed img { transform: translate(1px, 1px); }
 
 /* Thin button at the far right that retracts the bar. The arrow points the way the bar will move. */
 #toggle { flex: none; width: 12px; height: var(--button-h); padding: 0; border: 0;
   background: var(--face);
   box-shadow: inset -1px -1px var(--dark), inset 1px 1px var(--hi),
               inset -2px -2px var(--lo), inset 2px 2px var(--face); }
-#toggle:active { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark),
+#toggle.pressed { box-shadow: inset -1px -1px var(--hi), inset 1px 1px var(--dark),
                              inset -2px -2px var(--face), inset 2px 2px var(--lo); }
 #toggle::after { content: ""; display: block; margin: 0 auto; width: 0; height: 0;
   border-top: 4px solid transparent; border-bottom: 4px solid transparent;
