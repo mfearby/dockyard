@@ -14,12 +14,16 @@ public enum Theme: String, Codable, Equatable {
     case dark
 }
 
-/// The lists of apps the user manages in Options with Add… and Remove.
+/// The lists the user manages in Options with Add… and Remove. All hold bundle IDs except `menuFolders` (paths).
 public enum AppList: String, Codable, Equatable {
     /// Apps that never get a button on the bar.
     case excludedApps
     /// Launcher icons between the menu button and the taskbar buttons.
     case quickLaunch
+    /// Apps added to the menu button's menu.
+    case menuApps
+    /// Folders added to the menu button's menu, as absolute paths.
+    case menuFolders
 }
 
 /// Options the user can toggle on the Options screen.
@@ -40,6 +44,10 @@ public struct Preferences: Codable, Equatable {
     public var excludedApps: [String]
     /// Bundle IDs of the Quick Launch icons, left to right.
     public var quickLaunch: [String]
+    /// Bundle IDs of apps in the menu button's menu, top to bottom.
+    public var menuApps: [String]
+    /// Paths of folders in the menu button's menu, top to bottom.
+    public var menuFolders: [String]
     public var theme: Theme
 
     public static let defaultBarHeight = 40
@@ -53,7 +61,7 @@ public struct Preferences: Codable, Equatable {
     public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
                 barHeight: Int = Preferences.defaultBarHeight, screenSpace: ScreenSpace = .coverDock,
                 separateWindows: Bool = false, excludedApps: [String] = [], quickLaunch: [String] = [],
-                theme: Theme = .light) {
+                menuApps: [String] = [], menuFolders: [String] = [], theme: Theme = .light) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
         self.barHeight = Preferences.clampBarHeight(barHeight)
@@ -61,23 +69,31 @@ public struct Preferences: Codable, Equatable {
         self.separateWindows = separateWindows
         self.excludedApps = excludedApps
         self.quickLaunch = quickLaunch
+        self.menuApps = menuApps
+        self.menuFolders = menuFolders
         self.theme = theme
     }
 
-    public func apps(in list: AppList) -> [String] {
+    /// The bundle IDs (or for `menuFolders`, paths) in `list`.
+    public func items(in list: AppList) -> [String] {
         switch list {
         case .excludedApps: excludedApps
         case .quickLaunch: quickLaunch
+        case .menuApps: menuApps
+        case .menuFolders: menuFolders
         }
     }
 
-    /// Appends `bundleId` to `list` unless it's already there. Returns whether it was added.
+    /// Appends `item` (a bundle ID, or a path for `menuFolders`) to `list` unless it's already there.
+    /// Returns whether it was added.
     @discardableResult
-    public mutating func add(_ bundleId: String, to list: AppList) -> Bool {
-        guard !apps(in: list).contains(bundleId) else { return false }
+    public mutating func add(_ item: String, to list: AppList) -> Bool {
+        guard !items(in: list).contains(item) else { return false }
         switch list {
-        case .excludedApps: excludedApps.append(bundleId)
-        case .quickLaunch: quickLaunch.append(bundleId)
+        case .excludedApps: excludedApps.append(item)
+        case .quickLaunch: quickLaunch.append(item)
+        case .menuApps: menuApps.append(item)
+        case .menuFolders: menuFolders.append(item)
         }
         return true
     }
@@ -93,6 +109,8 @@ public struct Preferences: Codable, Equatable {
         separateWindows = try c.decodeIfPresent(Bool.self, forKey: .separateWindows) ?? false
         excludedApps = try c.decodeIfPresent([String].self, forKey: .excludedApps) ?? []
         quickLaunch = try c.decodeIfPresent([String].self, forKey: .quickLaunch) ?? []
+        menuApps = try c.decodeIfPresent([String].self, forKey: .menuApps) ?? []
+        menuFolders = try c.decodeIfPresent([String].self, forKey: .menuFolders) ?? []
         theme = ((try? c.decodeIfPresent(Theme.self, forKey: .theme)) ?? nil) ?? .light
     }
 }

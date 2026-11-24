@@ -42,6 +42,26 @@ struct AppOrderingTests {
     }
 }
 
+struct AlphabeticalOrderTests {
+    private func sorted(_ names: [String]) -> [String] {
+        AlphabeticalOrder.sorted(names, name: { $0 }, id: { $0 })
+    }
+
+    @Test func ignoresCase() {
+        #expect(sorted(["notes", "Calendar", "Mail"]) == ["Calendar", "Mail", "notes"])
+    }
+
+    @Test func sortsNumbersNumerically() {
+        #expect(sorted(["Folder 10", "Folder 2", "Folder 1"]) == ["Folder 1", "Folder 2", "Folder 10"])
+    }
+
+    @Test func sameNamesAreOrderedByID() {
+        let items = [("Projects", "/Volumes/Work/Projects"), ("Projects", "/Users/me/Projects"), ("Apps", "/Applications")]
+        let result = AlphabeticalOrder.sorted(items, name: \.0, id: \.1).map(\.1)
+        #expect(result == ["/Applications", "/Users/me/Projects", "/Volumes/Work/Projects"])
+    }
+}
+
 struct AppButtonClickTests {
     @Test func firstClickOnABackgroundAppJustBringsItForward() {
         #expect(AppButtonClick.action(isFrontmost: false, windowCount: 3) == .activate)

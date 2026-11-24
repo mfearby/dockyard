@@ -58,11 +58,14 @@ public enum UIMessage: Equatable {
                   let separate = p["separateWindows"] as? Bool,
                   let excluded = p["excludedApps"] as? [String],
                   let quickLaunch = p["quickLaunch"] as? [String],
+                  let menuApps = p["menuApps"] as? [String],
+                  let menuFolders = p["menuFolders"] as? [String],
                   let theme = (p["theme"] as? String).flatMap(Theme.init(rawValue:)) else { return nil }
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
                                                barHeight: Int(height.rounded()), screenSpace: space,
                                                separateWindows: separate, excludedApps: excluded,
-                                               quickLaunch: quickLaunch, theme: theme))
+                                               quickLaunch: quickLaunch, menuApps: menuApps,
+                                               menuFolders: menuFolders, theme: theme))
         case "requestAccessibility":
             self = .requestAccessibility
         case "chooseApp":
@@ -193,6 +196,19 @@ public struct AppSummary: Codable, Equatable {
     }
 }
 
+/// A folder's name and icon, for the Options window's list of menu folders.
+public struct FolderSummary: Codable, Equatable {
+    public var path: String
+    public var name: String
+    public var icon: String
+
+    public init(path: String, name: String, icon: String) {
+        self.path = path
+        self.name = name
+        self.icon = icon
+    }
+}
+
 public enum NativeMessage {
     private struct State: Encodable {
         let type = "state"
@@ -211,6 +227,9 @@ public enum NativeMessage {
         let excludedAppDetails: [AppSummary]
         /// Name and icon for each entry in `preferences.quickLaunch`, in the same order.
         let quickLaunchDetails: [AppSummary]
+        /// Likewise for `preferences.menuApps` and `preferences.menuFolders`.
+        let menuAppDetails: [AppSummary]
+        let menuFolderDetails: [FolderSummary]
         let barHeightMin = Preferences.barHeightRange.lowerBound
         let barHeightMax = Preferences.barHeightRange.upperBound
     }
@@ -226,9 +245,11 @@ public enum NativeMessage {
     /// `dockHeight` is the space the Dock reserves at the bottom of the screen, or 0 if it reserves none.
     public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool, dockHeight: Int,
                                       excludedAppDetails: [AppSummary] = [],
-                                      quickLaunchDetails: [AppSummary] = []) -> String {
+                                      quickLaunchDetails: [AppSummary] = [], menuAppDetails: [AppSummary] = [],
+                                      menuFolderDetails: [FolderSummary] = []) -> String {
         script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight,
-                        excludedAppDetails: excludedAppDetails, quickLaunchDetails: quickLaunchDetails))
+                        excludedAppDetails: excludedAppDetails, quickLaunchDetails: quickLaunchDetails,
+                        menuAppDetails: menuAppDetails, menuFolderDetails: menuFolderDetails))
     }
 
     private static func script<T: Encodable>(_ message: T) -> String {

@@ -27,6 +27,8 @@ struct UIMessageTests {
         #expect(UIMessage(body: ["type": "requestAccessibility"]) == .requestAccessibility)
         #expect(UIMessage(body: ["type": "chooseApp", "list": "excludedApps"]) == .chooseApp(.excludedApps))
         #expect(UIMessage(body: ["type": "chooseApp", "list": "quickLaunch"]) == .chooseApp(.quickLaunch))
+        #expect(UIMessage(body: ["type": "chooseApp", "list": "menuApps"]) == .chooseApp(.menuApps))
+        #expect(UIMessage(body: ["type": "chooseApp", "list": "menuFolders"]) == .chooseApp(.menuFolders))
         #expect(UIMessage(body: ["type": "chooseApp", "list": "favourites"]) == nil)
         #expect(UIMessage(body: ["type": "chooseApp"]) == nil)
     }
@@ -44,7 +46,21 @@ struct UIMessageTests {
         ["type": "setPreferences",
          "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
                          "screenSpace": screenSpace, "separateWindows": false, "excludedApps": excludedApps,
-                         "quickLaunch": quickLaunch, "theme": theme]]
+                         "quickLaunch": quickLaunch, "menuApps": [String](), "menuFolders": [String](),
+                         "theme": theme]]
+    }
+
+    @Test func parsesMenuLists() {
+        var body = setPreferences()
+        var prefs = body["preferences"] as! [String: Any]
+        prefs["menuApps"] = ["com.apple.Notes"]
+        prefs["menuFolders"] = ["/Users/me/Projects"]
+        body["preferences"] = prefs
+        #expect(UIMessage(body: body) == .setPreferences(Preferences(hideHiddenApps: true, menuApps: ["com.apple.Notes"],
+                                                                     menuFolders: ["/Users/me/Projects"])))
+        prefs["menuFolders"] = "/Users/me/Projects"
+        body["preferences"] = prefs
+        #expect(UIMessage(body: body) == nil)
     }
 
     @Test func parsesQuickLaunch() {
@@ -79,6 +95,8 @@ struct UIMessageTests {
                                                    "separateWindows": NSNumber(value: true),
                                                    "excludedApps": [String](),
                                                    "quickLaunch": [String](),
+                                                   "menuApps": [String](),
+                                                   "menuFolders": [String](),
                                                    "theme": "light"]]
         #expect(UIMessage(body: body)
             == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36,
@@ -205,7 +223,9 @@ struct NativeMessageTests {
                                      screenSpace: .moveWindows, excludedApps: ["com.spotify.client"]),
             accessibilityTrusted: false, dockHeight: 36,
             excludedAppDetails: [AppSummary(bundleId: "com.spotify.client", name: "Spotify", icon: "data:,")],
-            quickLaunchDetails: [AppSummary(bundleId: "com.apple.Notes", name: "Notes", icon: "data:,")])
+            quickLaunchDetails: [AppSummary(bundleId: "com.apple.Notes", name: "Notes", icon: "data:,")],
+            menuAppDetails: [AppSummary(bundleId: "com.apple.finder", name: "Finder", icon: "data:,")],
+            menuFolderDetails: [FolderSummary(path: "/Users/me/Projects", name: "Projects", icon: "data:,")])
         let msg = try payload(script)
         #expect(msg["type"] as? String == "settings")
         #expect(msg["accessibilityTrusted"] as? Bool == false)
@@ -218,6 +238,11 @@ struct NativeMessageTests {
         #expect(prefs["barHeight"] as? Int == 36)
         #expect(prefs["screenSpace"] as? String == "moveWindows")
         #expect(prefs["excludedApps"] as? [String] == ["com.spotify.client"])
+        let menuApps = try #require(msg["menuAppDetails"] as? [[String: Any]])
+        #expect(menuApps.first?["name"] as? String == "Finder")
+        let folders = try #require(msg["menuFolderDetails"] as? [[String: Any]])
+        #expect(folders.first?["path"] as? String == "/Users/me/Projects")
+        #expect(folders.first?["name"] as? String == "Projects")
         let quickDetails = try #require(msg["quickLaunchDetails"] as? [[String: Any]])
         #expect(quickDetails.first?["name"] as? String == "Notes")
         let details = try #require(msg["excludedAppDetails"] as? [[String: Any]])

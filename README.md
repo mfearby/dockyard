@@ -41,7 +41,7 @@ opens it.
 - An hourglass and a dimmed label on the button of an app that's still starting up.
 - Right-click a button to minimise, maximise or close its window, or quit the app.
 - A Quick Launch area of app icons next to the menu button.
-- A menu button with Downloads, Bin and Finder, as on the Dock.
+- A menu button with Downloads, Bin and Finder, as on the Dock, plus any apps and folders you add to it.
 - Options to leave out hidden apps, apps with no open windows, or apps you choose.
 - Two ways to share the screen with other windows: cover the Dock, or move and resize windows so they stay
   above the taskbar.

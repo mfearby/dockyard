@@ -538,7 +538,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let script = NativeMessage.settingsScript(
             preferences: config.preferences, accessibilityTrusted: AXIsProcessTrusted(), dockHeight: dock,
             excludedAppDetails: config.preferences.excludedApps.map(appSummary),
-            quickLaunchDetails: config.preferences.quickLaunch.map(appSummary))
+            quickLaunchDetails: config.preferences.quickLaunch.map(appSummary),
+            menuAppDetails: AlphabeticalOrder.sorted(config.preferences.menuApps.map(appSummary),
+                                                     name: \.name, id: \.bundleId),
+            menuFolderDetails: AlphabeticalOrder.sorted(config.preferences.menuFolders.map(folderSummary),
+                                                        name: \.name, id: \.path))
         settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
@@ -570,7 +574,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// The Add… menu for one of the Options lists: running apps not already on it, then a file picker for
     /// anything else (such as an app that isn't running).
     private func showAppMenu(for list: AppList) {
-        let already = Set(config.preferences.apps(in: list))
+        let already = Set(config.preferences.items(in: list))
         let me = Bundle.main.bundleIdentifier
         var seen = Set<String>()
         let apps = NSWorkspace.shared.runningApplications
@@ -619,13 +623,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         panel.allowedContentTypes = [.application]
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = "Add"
-        panel.message = list == .quickLaunch
-            ? "Choose an app to add to Quick Launch. System tools like Screenshot are in Utilities."
-            : "Choose an app to never show in the taskbar."
+        switch list {
+        case .quickLaunch: panel.message = "Choose an app to add to Quick Launch. System tools like Screenshot are in Utilities."
+        case .menuApps: panel.message = "Choose an app to add to the menu."
+        case .excludedApps, .menuFolders: panel.message = "Choose an app to never show in the taskbar."
+        }
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url, let id = Bundle(url: url)?.bundleIdentifier else { return }
             self?.add(id, to: list)
         }
+    }
+
+    /// Asks for one or more folders to add to the menu.
+    private func chooseFolders() {
+        guard let window = settingsWindow else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+        panel.prompt = "Add"
+        panel.message = "Choose folders to add to the menu."
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK else { return }
+            for url in panel.urls { self?.add(url.path, to: .menuFolders) }
+        }
+    }
+
+    /// Name and icon for a folder in the menu list. A folder that has since been moved or deleted keeps its last
+    /// path component as its name, with no icon, so the user can still see and remove it.
+    private func folderSummary(path: String) -> FolderSummary {
+        guard FileManager.default.fileExists(atPath: path) else {
+            return FolderSummary(path: path, name: (path as NSString).lastPathComponent, icon: "")
+        }
+        return FolderSummary(path: path, name: FileManager.default.displayName(atPath: path),
+                             icon: iconDataURL(image: NSWorkspace.shared.icon(forFile: path), id: path))
     }
 
     private func add(_ bundleId: String, to list: AppList) {
@@ -712,7 +744,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
         case .chooseApp(let list):
-            showAppMenu(for: list)
+            if list == .menuFolders { chooseFolders() } else { showAppMenu(for: list) }
         case .resizeSettings(let height):
             resizeSettings(to: height)
         case .closeSettings:
@@ -726,6 +758,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         options.target = self
         menu.addItem(options)
         menu.addItem(.separator())
+
+        // The user's own apps and folders, each in its own section, in alphabetical order. Ones that can't be
+        // found are left out.
+        let found = config.preferences.menuApps.compactMap { id -> (id: String, url: URL, name: String)? in
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: id).map { (id, $0, appSummary(bundleId: id).name) }
+        }
+        let apps = AlphabeticalOrder.sorted(found, name: \.name, id: \.id)
+        for (id, url, name) in apps {
+            let item = NSMenuItem(title: name, action: #selector(launchFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = id
+            item.image = menuIcon(NSWorkspace.shared.icon(forFile: url.path))
+            menu.addItem(item)
+        }
+        if !apps.isEmpty { menu.addItem(.separator()) }
+
+        let folders = AlphabeticalOrder.sorted(
+            config.preferences.menuFolders.filter { FileManager.default.fileExists(atPath: $0) },
+            name: { FileManager.default.displayName(atPath: $0) }, id: { $0 })
+        for path in folders {
+            let item = NSMenuItem(title: FileManager.default.displayName(atPath: path),
+                                  action: #selector(openFolderFromMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = path
+            item.image = menuIcon(NSWorkspace.shared.icon(forFile: path))
+            menu.addItem(item)
+        }
+        if !folders.isEmpty { menu.addItem(.separator()) }
 
         // The same places the Dock offers: the Downloads stack, the Bin and Finder.
         let fm = FileManager.default
@@ -930,6 +990,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// Window changes from the menu post no workspace notification, so refresh the bar shortly after.
     private func refreshSoon() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.pushState() }
+    }
+
+    private func menuIcon(_ image: NSImage) -> NSImage? {
+        guard let icon = image.copy() as? NSImage else { return nil }
+        icon.size = NSSize(width: 16, height: 16)
+        return icon
+    }
+
+    @objc private func launchFromMenu(_ sender: NSMenuItem) {
+        if let id = sender.representedObject as? String { launch(bundleId: id) }
+    }
+
+    /// Opens the folder in Finder.
+    @objc private func openFolderFromMenu(_ sender: NSMenuItem) {
+        if let path = sender.representedObject as? String { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
     }
 
     private func addMenuItem(to menu: NSMenu, title: String, action: Selector, icon: NSImage?) {

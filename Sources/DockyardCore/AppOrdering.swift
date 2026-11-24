@@ -46,6 +46,20 @@ public struct AppSnapshot: Equatable {
     }
 }
 
+/// Alphabetical order by displayed name, as Finder sorts: case-insensitive, with numbers in numeric order
+/// ("Folder 2" before "Folder 10"). Items with the same name are ordered by `id`, so the order is always the same.
+public enum AlphabeticalOrder {
+    public static func sorted<T>(_ items: [T], name: (T) -> String, id: (T) -> String) -> [T] {
+        items.sorted { a, b in
+            switch name(a).localizedStandardCompare(name(b)) {
+            case .orderedAscending: true
+            case .orderedDescending: false
+            case .orderedSame: id(a) < id(b)
+            }
+        }
+    }
+}
+
 /// What clicking an app's taskbar button does (window buttons always raise their window).
 public enum AppButtonClick: Equatable {
     /// Bring the app to the front.

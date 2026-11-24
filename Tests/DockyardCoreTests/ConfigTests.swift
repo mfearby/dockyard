@@ -161,7 +161,27 @@ struct ConfigTests {
         prefs.add("com.spotify.client", to: .excludedApps)
         let added = prefs.add("com.spotify.client", to: .quickLaunch)
         #expect(added)
-        #expect(prefs.apps(in: .excludedApps) == ["com.spotify.client"])
-        #expect(prefs.apps(in: .quickLaunch) == ["com.spotify.client"])
+        #expect(prefs.items(in: .excludedApps) == ["com.spotify.client"])
+        #expect(prefs.items(in: .quickLaunch) == ["com.spotify.client"])
+        #expect(prefs.items(in: .menuApps).isEmpty)
+    }
+
+    @Test func menuListsDefaultToEmptyAndRoundTrip() throws {
+        let empty = try JSONDecoder().decode(Config.self, from: Data(#"{"preferences": {}}"#.utf8))
+        #expect(empty.preferences.menuApps.isEmpty && empty.preferences.menuFolders.isEmpty)
+        let store = makeStore()
+        try store.save(Config(preferences: Preferences(menuApps: ["com.apple.Notes"],
+                                                       menuFolders: ["/Users/me/Projects", "/Applications"])))
+        let loaded = store.load().preferences
+        #expect(loaded.menuApps == ["com.apple.Notes"])
+        #expect(loaded.menuFolders == ["/Users/me/Projects", "/Applications"])
+    }
+
+    @Test func foldersAreAddedOnce() {
+        var prefs = Preferences()
+        let first = prefs.add("/Users/me/Projects", to: .menuFolders)
+        let again = prefs.add("/Users/me/Projects", to: .menuFolders)
+        #expect(first && !again)
+        #expect(prefs.menuFolders == ["/Users/me/Projects"])
     }
 }

@@ -25,8 +25,8 @@ export type ScreenSpace = 'coverDock' | 'moveWindows';
 
 export type Theme = 'light' | 'dark';
 
-/** The Options window's app lists, managed with Add… and Remove. */
-export type AppList = 'excludedApps' | 'quickLaunch';
+/** The Options window's lists, managed with Add… and Remove. All hold bundle IDs except menuFolders (paths). */
+export type AppList = 'excludedApps' | 'quickLaunch' | 'menuApps' | 'menuFolders';
 
 export interface Preferences {
     hideHiddenApps: boolean;
@@ -40,7 +40,18 @@ export interface Preferences {
     excludedApps: string[];
     /** Bundle IDs of the Quick Launch icons, left to right. */
     quickLaunch: string[];
+    /** Bundle IDs of apps in the menu button's menu. */
+    menuApps: string[];
+    /** Paths of folders in the menu button's menu. */
+    menuFolders: string[];
     theme: Theme;
+}
+
+/** A folder's name and icon, for the menu's folder list. */
+export interface FolderSummary {
+    path: string;
+    name: string;
+    icon: string;
 }
 
 /** An app's name and icon, for apps that may not be running. */
@@ -63,6 +74,8 @@ export type NativeMsg =
           excludedAppDetails: AppSummary[];
           /** Name and icon for each of `preferences.quickLaunch`, in the same order. */
           quickLaunchDetails: AppSummary[];
+          menuAppDetails: AppSummary[];
+          menuFolderDetails: FolderSummary[];
           barHeightMin: number;
           barHeightMax: number;
       };

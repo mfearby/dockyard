@@ -82,3 +82,17 @@ input[type="number"] { width: 52px; height: 22px; padding: 0 4px; border: 0; fon
 .listbox .item.selected { background: var(--selection); color: var(--selection-text); }
 .listbox .empty { padding: 4px; color: var(--disabled); }
 .list-buttons { margin-top: 8px; }
+
+/* Win95-style tab control: raised tabs along the top; the selected one is taller and joins the panel below. */
+.tabs { display: flex; align-items: flex-end; padding-left: 2px; margin-bottom: -12px; position: relative; z-index: 1; }
+.tab { flex: none; min-width: 0; height: 20px; padding: 0 12px; margin-right: 1px; border-radius: 3px 3px 0 0;
+    box-shadow: inset 1px 1px var(--hi), inset -1px 0 var(--dark), inset -2px 0 var(--lo); }
+.tab:active { box-shadow: inset 1px 1px var(--hi), inset -1px 0 var(--dark), inset -2px 0 var(--lo); }
+.tab.selected { height: 24px; margin: 0 -1px -2px -3px; padding: 0 14px 2px; position: relative; z-index: 2; }
+.tab:focus-visible { outline: 1px dotted var(--text); outline-offset: -5px; }
+.panels { display: grid; padding: 12px 10px 10px;
+    box-shadow: inset 1px 1px var(--hi), inset -1px -1px var(--dark), inset -2px -2px var(--lo); }
+.panel { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 12px; }
+.panel.inactive { visibility: hidden; }
+.intro { margin: 0; line-height: 1.4; color: var(--note); }
+.listbox.tall { height: 128px; }

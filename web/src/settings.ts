@@ -1,4 +1,6 @@
-import { onNative, send, type AppList, type AppSummary, type Preferences, type ScreenSpace, type Theme } from './bridge.ts';
+import {
+    onNative, send, type AppList, type AppSummary, type FolderSummary, type Preferences, type ScreenSpace, type Theme,
+} from './bridge.ts';
 import { canMatchDock, parseBarHeight } from './prefs.ts';
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -21,15 +23,25 @@ let max = 64;
 /** Last height sent or received, used when the box holds something unusable. */
 let height = 40;
 
-/** One of the Options window's app lists: a list box with Add… and Remove. Add… asks Swift to show its app menu;
- *  Swift adds the app and sends the settings back. Remove edits the list here and saves it. */
+/** An entry in one of the Options lists: an app (id is its bundle ID) or a folder (id is its path). */
+interface ListItem {
+    id: string;
+    name: string;
+    icon: string;
+}
+
+const fromApp = (a: AppSummary): ListItem => ({ id: a.bundleId, name: a.name, icon: a.icon });
+const fromFolder = (f: FolderSummary): ListItem => ({ id: f.path, name: f.name, icon: f.icon });
+
+/** One of the Options window's lists: a list box with Add… and Remove. Add… asks Swift to show its app menu or
+ *  folder picker; Swift adds the item and sends the settings back. Remove edits the list here and saves it. */
 class AppListBox {
-    apps: AppSummary[] = [];
+    items: ListItem[] = [];
     private selected: string | null = null;
     private readonly listEl: HTMLElement;
     private readonly removeEl: HTMLButtonElement;
 
-    constructor(root: HTMLElement, readonly list: AppList) {
+    constructor(root: HTMLElement, readonly list: AppList, private readonly emptyText: string) {
         this.listEl = root.querySelector<HTMLElement>('.listbox')!;
         this.removeEl = root.querySelector<HTMLButtonElement>('.remove')!;
         this.listEl.addEventListener('mousedown', (e) => {
@@ -44,37 +56,38 @@ class AppListBox {
         root.querySelector('.add')!.addEventListener('click', () => send({ type: 'chooseApp', list }));
     }
 
-    set(apps: AppSummary[]) {
-        this.apps = apps;
+    set(items: ListItem[]) {
+        this.items = items;
         this.render();
     }
 
     ids(): string[] {
-        return this.apps.map((a) => a.bundleId);
+        return this.items.map((i) => i.id);
     }
 
     private removeSelected() {
         if (this.selected === null) return;
-        this.apps = this.apps.filter((a) => a.bundleId !== this.selected);
+        this.items = this.items.filter((i) => i.id !== this.selected);
         this.selected = null;
         this.render();
         save();
     }
 
     private render() {
-        if (!this.apps.some((a) => a.bundleId === this.selected)) this.selected = null;
+        if (!this.items.some((i) => i.id === this.selected)) this.selected = null;
         this.removeEl.disabled = this.selected === null;
-        if (this.apps.length === 0) {
+        if (this.items.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'empty';
-            empty.textContent = 'No apps. Use Add\u2026 to choose some.';
+            empty.textContent = this.emptyText;
             this.listEl.replaceChildren(empty);
             return;
         }
-        this.listEl.replaceChildren(...this.apps.map((app) => {
+        this.listEl.replaceChildren(...this.items.map((app) => {
             const item = document.createElement('div');
-            item.className = 'item' + (app.bundleId === this.selected ? ' selected' : '');
-            item.dataset.id = app.bundleId;
+            item.className = 'item' + (app.id === this.selected ? ' selected' : '');
+            item.dataset.id = app.id;
+            item.title = app.id.startsWith('/') ? app.id : '';  // a folder's full path on hover
             item.setAttribute('role', 'option');
             if (app.icon) {
                 const img = document.createElement('img');
@@ -90,8 +103,37 @@ class AppListBox {
 }
 
 const appListRoot = (list: AppList) => document.querySelector<HTMLElement>(`.applist[data-list="${list}"]`)!;
-const quickLaunch = new AppListBox(appListRoot('quickLaunch'), 'quickLaunch');
-const excludedApps = new AppListBox(appListRoot('excludedApps'), 'excludedApps');
+const noApps = 'No apps. Use Add\u2026 to choose some.';
+const quickLaunch = new AppListBox(appListRoot('quickLaunch'), 'quickLaunch', noApps);
+const excludedApps = new AppListBox(appListRoot('excludedApps'), 'excludedApps', noApps);
+const menuApps = new AppListBox(appListRoot('menuApps'), 'menuApps', noApps);
+const menuFolders = new AppListBox(appListRoot('menuFolders'), 'menuFolders', 'No folders. Use Add\u2026 to choose some.');
+
+// Tabs. All panels share one grid cell, so the window is as tall as the tallest and doesn't resize on switching.
+const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
+const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel'));
+
+function selectTab(name: string) {
+    for (const tab of tabs) {
+        const on = tab.dataset.tab === name;
+        tab.classList.toggle('selected', on);
+        tab.setAttribute('aria-selected', String(on));
+        tab.tabIndex = on ? 0 : -1;
+    }
+    for (const panel of panels) panel.classList.toggle('inactive', panel.dataset.panel !== name);
+}
+
+for (const tab of tabs) tab.addEventListener('click', () => selectTab(tab.dataset.tab!));
+// Arrow keys move between tabs, as in a standard tab control.
+document.querySelector('.tabs')!.addEventListener('keydown', (e) => {
+    const key = (e as KeyboardEvent).key;
+    if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+    const i = tabs.findIndex((t) => t.classList.contains('selected'));
+    const next = tabs[(i + (key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    selectTab(next.dataset.tab!);
+    next.focus();
+});
+selectTab('general');
 
 function screenSpace(): ScreenSpace {
     return screenSpaceRadios.find((r) => r.checked)?.value === 'moveWindows' ? 'moveWindows' : 'coverDock';
@@ -115,6 +157,8 @@ function current(): Preferences {
         separateWindows: separateWindows.checked,
         excludedApps: excludedApps.ids(),
         quickLaunch: quickLaunch.ids(),
+        menuApps: menuApps.ids(),
+        menuFolders: menuFolders.ids(),
         theme: theme(),
     };
 }
@@ -152,8 +196,10 @@ onNative((msg) => {
     barHeight.max = String(max);
     // Don't overwrite the box while the user is typing in it.
     if (document.activeElement !== barHeight) barHeight.value = String(height);
-    excludedApps.set(msg.excludedAppDetails);
-    quickLaunch.set(msg.quickLaunchDetails);
+    excludedApps.set(msg.excludedAppDetails.map(fromApp));
+    quickLaunch.set(msg.quickLaunchDetails.map(fromApp));
+    menuApps.set(msg.menuAppDetails.map(fromApp));
+    menuFolders.set(msg.menuFolderDetails.map(fromFolder));
     updateNotes();
 });
 
