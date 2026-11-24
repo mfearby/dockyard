@@ -798,7 +798,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     /// The right-click menu for a taskbar button. Window items act on that button's window, or for an app button,
-    /// on the app's main window. Hiding is left to Command-H.
+    /// on the app's main window. Hide works on the whole app, as Command-H does, since macOS can't hide one window.
     private func showButtonMenu(buttonID: String) {
         let parsed = ButtonID.parse(buttonID)
         var target: MenuTarget?
@@ -818,11 +818,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                       action: #selector(toggleMinimiseFromMenu(_:)), target: target, enabled: window != nil)
         addTargetItem(to: menu, title: "Maximise", action: #selector(maximiseFromMenu(_:)), target: target,
                       enabled: window.map(AXWindows.canResize) ?? false)
+        menu.addItem(.separator())
+
+        // The same trio as every app's own menu: Hide, Hide Others, Show All.
+        let name = target.app.localizedName ?? parsed.bundleId
+        let others = otherVisibleApps(than: target.app)
+        let anyHidden = NSWorkspace.shared.runningApplications.contains { $0.activationPolicy == .regular && $0.isHidden }
+        addTargetItem(to: menu, title: target.app.isHidden ? "Show \(name)" : "Hide \(name)",
+                      action: #selector(toggleHideFromMenu(_:)), target: target, enabled: true)
+        addTargetItem(to: menu, title: "Hide Others", action: #selector(hideOthersFromMenu(_:)), target: target,
+                      enabled: !others.isEmpty)
+        addTargetItem(to: menu, title: "Show All", action: #selector(showAllFromMenu(_:)), target: target,
+                      enabled: anyHidden)
+        menu.addItem(.separator())
+
+        addTargetItem(to: menu, title: "Quit \(name)", action: #selector(quitFromMenu(_:)), target: target, enabled: true)
+        menu.addItem(.separator())
         addTargetItem(to: menu, title: "Close Window", action: #selector(closeWindowFromMenu(_:)), target: target,
                       enabled: window.flatMap(AXWindows.closeButton) != nil)
-        menu.addItem(.separator())
-        let name = target.app.localizedName ?? parsed.bundleId
-        addTargetItem(to: menu, title: "Quit \(name)", action: #selector(quitFromMenu(_:)), target: target, enabled: true)
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
@@ -861,6 +874,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                                                  barHeight: barHeight, primaryHeight: primaryHeight)
         AXWindows.setFrame(window, frame)
         AXWindows.raise(window, of: target.app)
+        refreshSoon()
+    }
+
+    /// Hides the app (all its windows, like Command-H), or shows it again if it's hidden.
+    @objc private func toggleHideFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget else { return }
+        if target.app.isHidden {
+            target.app.unhide()
+            target.app.activate(options: [])
+        } else {
+            target.app.hide()
+        }
+        refreshSoon()
+    }
+
+    /// Ordinary apps other than `app` (and Dockyard) that aren't hidden.
+    private func otherVisibleApps(than app: NSRunningApplication) -> [NSRunningApplication] {
+        let me = ProcessInfo.processInfo.processIdentifier
+        return NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isHidden && !$0.isTerminated
+                && $0.processIdentifier != app.processIdentifier && $0.processIdentifier != me
+        }
+    }
+
+    /// Hides every other app and brings this one to the front, like Option-Command-H.
+    @objc private func hideOthersFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? MenuTarget else { return }
+        if target.app.isHidden { target.app.unhide() }
+        target.app.activate(options: [])
+        otherVisibleApps(than: target.app).forEach { $0.hide() }
+        refreshSoon()
+    }
+
+    /// Shows every hidden app again.
+    @objc private func showAllFromMenu(_ sender: NSMenuItem) {
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app.isHidden {
+            app.unhide()
+        }
         refreshSoon()
     }
 
