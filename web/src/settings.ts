@@ -28,6 +28,8 @@ interface ListItem {
     id: string;
     name: string;
     icon: string;
+    /** Shown as a swatch at the end of the row (the Colours list). */
+    color?: string;
 }
 
 const fromApp = (a: AppSummary): ListItem => ({ id: a.bundleId, name: a.name, icon: a.icon });
@@ -37,6 +39,8 @@ const fromFolder = (f: FolderSummary): ListItem => ({ id: f.path, name: f.name, 
  *  folder picker; Swift adds the item and sends the settings back. Remove edits the list here and saves it. */
 class AppListBox {
     items: ListItem[] = [];
+    /** Called with the selected item's ID (or null) whenever the list is redrawn. */
+    onSelect?: (id: string | null) => void;
     private selected: string | null = null;
     private readonly listEl: HTMLElement;
     private readonly removeEl: HTMLButtonElement;
@@ -65,6 +69,15 @@ class AppListBox {
         return this.items.map((i) => i.id);
     }
 
+    selectedId(): string | null {
+        return this.selected;
+    }
+
+    select(id: string) {
+        this.selected = id;
+        this.render();
+    }
+
     private removeSelected() {
         if (this.selected === null) return;
         this.items = this.items.filter((i) => i.id !== this.selected);
@@ -76,6 +89,7 @@ class AppListBox {
     private render() {
         if (!this.items.some((i) => i.id === this.selected)) this.selected = null;
         this.removeEl.disabled = this.selected === null;
+        this.onSelect?.(this.selected);
         if (this.items.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'empty';
@@ -97,6 +111,12 @@ class AppListBox {
             const name = document.createElement('span');
             name.textContent = app.name;
             item.append(name);
+            if (app.color) {
+                const swatch = document.createElement('span');
+                swatch.className = 'swatch';
+                swatch.style.background = app.color;
+                item.append(swatch);
+            }
             return item;
         }));
     }
@@ -135,6 +155,70 @@ document.querySelector('.tabs')!.addEventListener('keydown', (e) => {
 });
 selectTab('general');
 
+// Colours tab. Swift validates and stores the colours, all "#rrggbb".
+let appColors: Record<string, string> = {};
+let settingsLoaded = false;
+let colorSaveTimer: number | undefined;
+const colorList = new AppListBox(appListRoot('appColors'), 'appColors', noApps);
+const palette = byId<HTMLDivElement>('palette');
+const paletteHint = byId<HTMLParagraphElement>('paletteHint');
+const customColor = byId<HTMLInputElement>('customColor');
+
+function colorItems(apps: AppSummary[]): ListItem[] {
+    return apps.map((a) => ({ ...fromApp(a), color: appColors[a.bundleId] }));
+}
+
+function currentColors(): Record<string, string> {
+    const colors: Record<string, string> = {};
+    for (const id of colorList.ids()) if (appColors[id]) colors[id] = appColors[id];
+    return colors;
+}
+
+function renderPalette(colors: string[]) {
+    if (palette.childElementCount > 0) return;
+    palette.replaceChildren(...colors.map((color) => {
+        const swatch = document.createElement('button');
+        swatch.className = 'swatch-btn';
+        swatch.dataset.color = color;
+        swatch.title = color;
+        swatch.setAttribute('aria-label', `Colour ${color}`);
+        swatch.style.setProperty('--face', color);
+        swatch.addEventListener('click', () => setSelectedColor(color, true));
+        return swatch;
+    }));
+    updatePalette(colorList.selectedId());
+}
+
+/** Enables the swatches when an app is selected and marks its current colour. */
+function updatePalette(selected: string | null) {
+    const current = selected ? appColors[selected] : undefined;
+    paletteHint.hidden = selected !== null;
+    for (const swatch of Array.from(palette.querySelectorAll<HTMLButtonElement>('.swatch-btn'))) {
+        swatch.disabled = selected === null;
+        swatch.classList.toggle('current', swatch.dataset.color === current);
+    }
+    customColor.disabled = selected === null;
+    // Don't fight the colour picker while it's in use.
+    if (current && document.activeElement !== customColor) customColor.value = current;
+}
+
+/** Gives the selected app `color`. The colour picker sends a stream of changes, so those saves are debounced. */
+function setSelectedColor(color: string, immediate: boolean) {
+    const id = colorList.selectedId();
+    if (!id) return;
+    appColors[id] = color;
+    colorList.set(colorList.items.map((item) => (item.id === id ? { ...item, color } : item)));
+    window.clearTimeout(colorSaveTimer);
+    if (immediate) {
+        save();
+    } else {
+        colorSaveTimer = window.setTimeout(save, 150);
+    }
+}
+
+colorList.onSelect = updatePalette;
+customColor.addEventListener('input', () => setSelectedColor(customColor.value.toLowerCase(), false));
+
 function screenSpace(): ScreenSpace {
     return screenSpaceRadios.find((r) => r.checked)?.value === 'moveWindows' ? 'moveWindows' : 'coverDock';
 }
@@ -159,6 +243,7 @@ function current(): Preferences {
         quickLaunch: quickLaunch.ids(),
         menuApps: menuApps.ids(),
         menuFolders: menuFolders.ids(),
+        appColors: currentColors(),
         theme: theme(),
     };
 }
@@ -200,6 +285,14 @@ onNative((msg) => {
     quickLaunch.set(msg.quickLaunchDetails.map(fromApp));
     menuApps.set(msg.menuAppDetails.map(fromApp));
     menuFolders.set(msg.menuFolderDetails.map(fromFolder));
+    appColors = { ...msg.preferences.appColors };
+    renderPalette(msg.colorPalette);
+    const before = new Set(colorList.ids());
+    colorList.set(colorItems(msg.appColorDetails));
+    // Select an app that was just added, so its colour can be changed straight away.
+    const added = settingsLoaded ? colorList.ids().find((id) => !before.has(id)) : undefined;
+    if (added) colorList.select(added);
+    settingsLoaded = true;
     updateNotes();
 });
 

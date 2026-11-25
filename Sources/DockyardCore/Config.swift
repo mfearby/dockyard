@@ -24,6 +24,8 @@ public enum AppList: String, Codable, Equatable {
     case menuApps
     /// Folders added to the menu button's menu, as absolute paths.
     case menuFolders
+    /// Apps with their own taskbar button colour (the colours are in `Preferences.appColors`).
+    case appColors
 }
 
 /// Options the user can toggle on the Options screen.
@@ -48,6 +50,8 @@ public struct Preferences: Codable, Equatable {
     public var menuApps: [String]
     /// Paths of folders in the menu button's menu, top to bottom.
     public var menuFolders: [String]
+    /// Taskbar button colour for each app, by bundle ID, as "#rrggbb" (see `AppColors`).
+    public var appColors: [String: String]
     public var theme: Theme
 
     public static let defaultBarHeight = 40
@@ -61,7 +65,8 @@ public struct Preferences: Codable, Equatable {
     public init(hideHiddenApps: Bool = false, hideAppsWithoutWindows: Bool = false,
                 barHeight: Int = Preferences.defaultBarHeight, screenSpace: ScreenSpace = .coverDock,
                 separateWindows: Bool = false, excludedApps: [String] = [], quickLaunch: [String] = [],
-                menuApps: [String] = [], menuFolders: [String] = [], theme: Theme = .light) {
+                menuApps: [String] = [], menuFolders: [String] = [], appColors: [String: String] = [:],
+                theme: Theme = .light) {
         self.hideHiddenApps = hideHiddenApps
         self.hideAppsWithoutWindows = hideAppsWithoutWindows
         self.barHeight = Preferences.clampBarHeight(barHeight)
@@ -71,6 +76,7 @@ public struct Preferences: Codable, Equatable {
         self.quickLaunch = quickLaunch
         self.menuApps = menuApps
         self.menuFolders = menuFolders
+        self.appColors = AppColors.validated(appColors)
         self.theme = theme
     }
 
@@ -81,6 +87,7 @@ public struct Preferences: Codable, Equatable {
         case .quickLaunch: quickLaunch
         case .menuApps: menuApps
         case .menuFolders: menuFolders
+        case .appColors: appColors.keys.sorted()
         }
     }
 
@@ -94,6 +101,7 @@ public struct Preferences: Codable, Equatable {
         case .quickLaunch: quickLaunch.append(item)
         case .menuApps: menuApps.append(item)
         case .menuFolders: menuFolders.append(item)
+        case .appColors: appColors[item] = AppColors.nextDefault(used: Array(appColors.values))
         }
         return true
     }
@@ -111,6 +119,7 @@ public struct Preferences: Codable, Equatable {
         quickLaunch = try c.decodeIfPresent([String].self, forKey: .quickLaunch) ?? []
         menuApps = try c.decodeIfPresent([String].self, forKey: .menuApps) ?? []
         menuFolders = try c.decodeIfPresent([String].self, forKey: .menuFolders) ?? []
+        appColors = AppColors.validated(try c.decodeIfPresent([String: String].self, forKey: .appColors) ?? [:])
         theme = ((try? c.decodeIfPresent(Theme.self, forKey: .theme)) ?? nil) ?? .light
     }
 }

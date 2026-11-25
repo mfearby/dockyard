@@ -66,12 +66,15 @@ public enum UIMessage: Equatable {
                   let quickLaunch = p["quickLaunch"] as? [String],
                   let menuApps = p["menuApps"] as? [String],
                   let menuFolders = p["menuFolders"] as? [String],
+                  let colors = p["appColors"] as? [String: Any],
                   let theme = (p["theme"] as? String).flatMap(Theme.init(rawValue:)) else { return nil }
+            // Invalid colours are dropped rather than rejecting the whole message.
+            let appColors = AppColors.validated(colors.compactMapValues { $0 as? String })
             self = .setPreferences(Preferences(hideHiddenApps: hideHidden, hideAppsWithoutWindows: hideWindowless,
                                                barHeight: Int(height.rounded()), screenSpace: space,
                                                separateWindows: separate, excludedApps: excluded,
                                                quickLaunch: quickLaunch, menuApps: menuApps,
-                                               menuFolders: menuFolders, theme: theme))
+                                               menuFolders: menuFolders, appColors: appColors, theme: theme))
         case "requestAccessibility":
             self = .requestAccessibility
         case "chooseApp":
@@ -164,9 +167,11 @@ public struct AppEntry: Codable, Equatable {
     public var badge: String?
     /// The app is still starting up (see `LaunchTracker`); the bar shows an hourglass and a dimmed label.
     public var loading: Bool
+    /// The app's button colour ("#rrggbb"), or nil for the theme's normal colour. Omitted from the JSON when nil.
+    public var color: String?
 
     public init(id: String? = nil, bundleId: String, name: String, title: String? = nil, icon: String, active: Bool,
-                badge: String? = nil, loading: Bool = false) {
+                badge: String? = nil, loading: Bool = false, color: String? = nil) {
         self.id = id ?? ButtonID.app(bundleId)
         self.bundleId = bundleId
         self.name = name
@@ -175,6 +180,7 @@ public struct AppEntry: Codable, Equatable {
         self.active = active
         self.badge = badge
         self.loading = loading
+        self.color = color
     }
 }
 
@@ -257,6 +263,9 @@ public enum NativeMessage {
         /// Likewise for `preferences.menuApps` and `preferences.menuFolders`.
         let menuAppDetails: [AppSummary]
         let menuFolderDetails: [FolderSummary]
+        /// Name and icon for each app in `preferences.appColors`, alphabetically.
+        let appColorDetails: [AppSummary]
+        let colorPalette = AppColors.palette
         let barHeightMin = Preferences.barHeightRange.lowerBound
         let barHeightMax = Preferences.barHeightRange.upperBound
     }
@@ -273,10 +282,12 @@ public enum NativeMessage {
     public static func settingsScript(preferences: Preferences, accessibilityTrusted: Bool, dockHeight: Int,
                                       excludedAppDetails: [AppSummary] = [],
                                       quickLaunchDetails: [AppSummary] = [], menuAppDetails: [AppSummary] = [],
-                                      menuFolderDetails: [FolderSummary] = []) -> String {
+                                      menuFolderDetails: [FolderSummary] = [],
+                                      appColorDetails: [AppSummary] = []) -> String {
         script(Settings(preferences: preferences, accessibilityTrusted: accessibilityTrusted, dockHeight: dockHeight,
                         excludedAppDetails: excludedAppDetails, quickLaunchDetails: quickLaunchDetails,
-                        menuAppDetails: menuAppDetails, menuFolderDetails: menuFolderDetails))
+                        menuAppDetails: menuAppDetails, menuFolderDetails: menuFolderDetails,
+                        appColorDetails: appColorDetails))
     }
 
     private struct About: Encodable {

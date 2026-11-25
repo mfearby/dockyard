@@ -39,6 +39,7 @@ opens it.
 - Drag buttons to reorder them. The order is remembered.
 - Badges on buttons, copied from the apps' Dock icons (such as unread mail counts).
 - An hourglass and a dimmed label on the button of an app that's still starting up.
+- Your own colour for an app's taskbar buttons, to spot them at a glance.
 - Right-click a button to minimise, maximise or close its window, or quit the app.
 - A Quick Launch area of app icons next to the menu button.
 - A menu button with Downloads, Bin and Finder, as on the Dock, plus any apps and folders you add to it.

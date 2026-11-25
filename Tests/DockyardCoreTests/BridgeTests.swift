@@ -70,7 +70,7 @@ struct UIMessageTests {
          "preferences": ["hideHiddenApps": true, "hideAppsWithoutWindows": false, "barHeight": height,
                          "screenSpace": screenSpace, "separateWindows": false, "excludedApps": excludedApps,
                          "quickLaunch": quickLaunch, "menuApps": [String](), "menuFolders": [String](),
-                         "theme": theme]]
+                         "appColors": [String: String](), "theme": theme]]
     }
 
     @Test func parsesMenuLists() {
@@ -82,6 +82,18 @@ struct UIMessageTests {
         #expect(UIMessage(body: body) == .setPreferences(Preferences(hideHiddenApps: true, menuApps: ["com.apple.Notes"],
                                                                      menuFolders: ["/Users/me/Projects"])))
         prefs["menuFolders"] = "/Users/me/Projects"
+        body["preferences"] = prefs
+        #expect(UIMessage(body: body) == nil)
+    }
+
+    @Test func parsesAppColorsAndDropsInvalidOnes() {
+        var body = setPreferences()
+        var prefs = body["preferences"] as! [String: Any]
+        prefs["appColors"] = ["com.apple.Notes": "#FFCC00", "com.apple.finder": "url(evil)", "x": 42]
+        body["preferences"] = prefs
+        #expect(UIMessage(body: body)
+            == .setPreferences(Preferences(hideHiddenApps: true, appColors: ["com.apple.Notes": "#ffcc00"])))
+        prefs["appColors"] = "#ffcc00"
         body["preferences"] = prefs
         #expect(UIMessage(body: body) == nil)
     }
@@ -120,6 +132,7 @@ struct UIMessageTests {
                                                    "quickLaunch": [String](),
                                                    "menuApps": [String](),
                                                    "menuFolders": [String](),
+                                                   "appColors": [String: String](),
                                                    "theme": "light"]]
         #expect(UIMessage(body: body)
             == .setPreferences(Preferences(hideHiddenApps: false, hideAppsWithoutWindows: true, barHeight: 36,
@@ -273,6 +286,26 @@ struct NativeMessageTests {
         #expect(details[0]["bundleId"] as? String == "com.spotify.client")
         #expect(details[0]["name"] as? String == "Spotify")
         #expect(details[0]["icon"] as? String == "data:,")
+    }
+
+    @Test func colourIsSentOnlyWhenSet() throws {
+        let plain = AppEntry(bundleId: "a", name: "A", icon: "", active: false)
+        let coloured = AppEntry(bundleId: "b", name: "B", icon: "", active: true, color: "#008080")
+        let apps = try #require(try payload(NativeMessage.stateScript(apps: [plain, coloured]))["apps"] as? [[String: Any]])
+        #expect(apps[0]["color"] == nil)
+        #expect(apps[1]["color"] as? String == "#008080")
+    }
+
+    @Test func settingsIncludeThePaletteAndColouredApps() throws {
+        let script = NativeMessage.settingsScript(
+            preferences: Preferences(appColors: ["com.apple.Notes": "#ff0000"]), accessibilityTrusted: true, dockHeight: 0,
+            appColorDetails: [AppSummary(bundleId: "com.apple.Notes", name: "Notes", icon: "")])
+        let msg = try payload(script)
+        #expect(msg["colorPalette"] as? [String] == AppColors.palette)
+        let details = try #require(msg["appColorDetails"] as? [[String: Any]])
+        #expect(details.first?["bundleId"] as? String == "com.apple.Notes")
+        let prefs = try #require(msg["preferences"] as? [String: Any])
+        #expect(prefs["appColors"] as? [String: String] == ["com.apple.Notes": "#ff0000"])
     }
 
     @Test func loadingIsSent() throws {

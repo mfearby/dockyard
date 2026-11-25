@@ -12,6 +12,8 @@ export interface AppInfo {
     badge?: string;
     /** The app is still starting up. */
     loading?: boolean;
+    /** The app's button colour ("#rrggbb"). Absent for the theme's normal colour. */
+    color?: string;
     icon: string;
     active: boolean;
 }
@@ -29,7 +31,7 @@ export type Theme = 'light' | 'dark';
 /** The About window's links; Swift maps each to a fixed URL. */
 export type AboutLink = 'repository' | 'kiro' | 'licence';
 
-export type AppList = 'excludedApps' | 'quickLaunch' | 'menuApps' | 'menuFolders';
+export type AppList = 'excludedApps' | 'quickLaunch' | 'menuApps' | 'menuFolders' | 'appColors';
 
 export interface Preferences {
     hideHiddenApps: boolean;
@@ -47,6 +49,8 @@ export interface Preferences {
     menuApps: string[];
     /** Paths of folders in the menu button's menu. */
     menuFolders: string[];
+    /** Button colour ("#rrggbb") for each app, by bundle ID. */
+    appColors: Record<string, string>;
     theme: Theme;
 }
 
@@ -80,6 +84,10 @@ export type NativeMsg =
           quickLaunchDetails: AppSummary[];
           menuAppDetails: AppSummary[];
           menuFolderDetails: FolderSummary[];
+          /** Name and icon for each app in `preferences.appColors`, alphabetically. */
+          appColorDetails: AppSummary[];
+          /** The colours offered as swatches. */
+          colorPalette: string[];
           barHeightMin: number;
           barHeightMax: number;
       };

@@ -450,8 +450,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let isFront = app.processIdentifier == front?.processIdentifier
             let badge = badges[id]
             let loading = isLoading(app, windowLists: lists)
+            let color = config.preferences.appColors[id]
             guard separate, let list = lists[app.processIdentifier], !list.isEmpty else {
-                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront, badge: badge, loading: loading)]
+                return [AppEntry(bundleId: id, name: name, icon: icon, active: isFront, badge: badge, loading: loading,
+                                 color: color)]
             }
             let titles = Dictionary(list.map { ($0.key, $0.title) }, uniquingKeysWith: { first, _ in first })
             let focused = isFront ? AXWindows.focused(pid: app.processIdentifier) : nil
@@ -460,7 +462,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 // The tooltip repeats the full label, which the button may have cut short.
                 return AppEntry(id: ButtonID.window(id, serial: window.serial), bundleId: id,
                                 name: WindowLabel.name(title: title, appName: name),
-                                icon: icon, active: window.key == focused, badge: badge, loading: loading)
+                                icon: icon, active: window.key == focused, badge: badge, loading: loading,
+                                color: color)
             }
         }
     }
@@ -544,7 +547,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             menuAppDetails: AlphabeticalOrder.sorted(config.preferences.menuApps.map(appSummary),
                                                      name: \.name, id: \.bundleId),
             menuFolderDetails: AlphabeticalOrder.sorted(config.preferences.menuFolders.map(folderSummary),
-                                                        name: \.name, id: \.path))
+                                                        name: \.name, id: \.path),
+            appColorDetails: AlphabeticalOrder.sorted(config.preferences.appColors.keys.map(appSummary),
+                                                      name: \.name, id: \.bundleId))
         settingsWebView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
@@ -665,6 +670,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         switch list {
         case .quickLaunch: panel.message = "Choose an app to add to Quick Launch. System tools like Screenshot are in Utilities."
         case .menuApps: panel.message = "Choose an app to add to the menu."
+        case .appColors: panel.message = "Choose an app to give its taskbar buttons a colour."
         case .excludedApps, .menuFolders: panel.message = "Choose an app to never show in the taskbar."
         }
         panel.beginSheetModal(for: window) { [weak self] response in

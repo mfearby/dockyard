@@ -1,4 +1,5 @@
 import { onNative, send, type AppInfo, type AppSummary } from './bridge.ts';
+import { mix, textOn } from './colors.ts';
 import { applyOrder, dragTarget, moveItem, shiftFor } from './reorder.ts';
 
 const tasksEl = document.getElementById('tasks')!;
@@ -46,6 +47,17 @@ function render() {
         el.className = 'task' + (a.active ? ' active' : '') + (a.loading ? ' loading' : '');
         el.dataset.id = a.id;
         el.dataset.tip = a.title;
+        if (a.color) {
+            // A button without focus shows the app's colour at half strength (blended 50/50 with the theme's
+            // normal button colour, as if 50% transparent), so it doesn't overpower the bar. The focused button
+            // uses the full colour in place of the darker squares of its chequer. The label is black or white,
+            // whichever reads better on what's behind it.
+            const face = a.active ? a.color : (mix(a.color, themeColor('--face')) ?? a.color);
+            const behind = a.active ? (mix(a.color, themeColor('--mesh-b')) ?? a.color) : face;
+            el.style.setProperty('--face', face);
+            el.style.setProperty('--mesh-a', a.color);
+            el.style.color = textOn(behind);
+        }
         const icon = document.createElement('span');
         icon.className = 'icon';
         const img = document.createElement('img');
@@ -126,6 +138,12 @@ function hourglass(): HTMLElement {
         + '<path d="M3 3.2 H7 L5 6 Z M3 10.8 H7 L5 8 Z" fill="#c9971c"/>'
         + '</svg>';
     return el;
+}
+
+/** One of the current theme's colours, e.g. '--face' (the normal button colour) or '--mesh-b' (the lighter
+ *  squares of the focused button's chequer). Read from the body, so per-button overrides don't affect it. */
+function themeColor(name: string): string {
+    return getComputedStyle(document.body).getPropertyValue(name).trim();
 }
 
 // Buttons shrink and grow with the window, e.g. when the bar is retracted or the screen changes.

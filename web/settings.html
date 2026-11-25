@@ -9,6 +9,7 @@
             <button class="tab" role="tab" data-tab="general">General</button>
             <button class="tab" role="tab" data-tab="screen">Screen space</button>
             <button class="tab" role="tab" data-tab="menu">Menu</button>
+            <button class="tab" role="tab" data-tab="colors">Colours</button>
         </div>
         <div class="panels">
             <div class="panel" role="tabpanel" data-panel="general">
@@ -126,6 +127,32 @@
                             <button class="add">Add…</button>
                             <button class="remove" disabled>Remove</button>
                         </div>
+                    </div>
+                </fieldset>
+            </div>
+
+            <div class="panel" role="tabpanel" data-panel="colors">
+                <p class="intro">
+                    Give an app's taskbar buttons their own colour, to spot them at a glance. Buttons show it at
+                    half strength; the focused button keeps its chequered pattern, with the full colour in place of
+                    the darker squares.
+                </p>
+                <fieldset>
+                    <legend>Button colours</legend>
+                    <div class="applist" data-list="appColors">
+                        <div class="listbox tall" tabindex="0" role="listbox" aria-label="Apps with a button colour"></div>
+                        <div class="row list-buttons">
+                            <button class="add">Add…</button>
+                            <button class="remove" disabled>Remove</button>
+                        </div>
+                    </div>
+                    <div class="palette">
+                        <p id="paletteHint" class="hint">Select an app above to change its colour.</p>
+                        <div id="palette" class="swatches" aria-label="Colours"></div>
+                        <label class="row custom">
+                            <span>Other colour:</span>
+                            <input type="color" id="customColor" disabled />
+                        </label>
                     </div>
                 </fieldset>
             </div>
