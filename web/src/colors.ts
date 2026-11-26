@@ -14,12 +14,18 @@ export function toHex([r, g, b]: RGB): string {
     return '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
 }
 
-/** The average of two colours: roughly how a fine chequer of the two looks. Null if either can't be parsed. */
-export function mix(a: string, b: string): string | null {
+/** `a` moved `amount` (0 to 1) of the way towards `b`. Null if either can't be parsed. */
+export function blend(a: string, b: string, amount: number): string | null {
     const x = parseHex(a);
     const y = parseHex(b);
     if (!x || !y) return null;
-    return toHex([(x[0] + y[0]) / 2, (x[1] + y[1]) / 2, (x[2] + y[2]) / 2]);
+    const t = Math.min(1, Math.max(0, amount));
+    return toHex([x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t]);
+}
+
+/** The average of two colours: roughly how a fine chequer of the two looks. Null if either can't be parsed. */
+export function mix(a: string, b: string): string | null {
+    return blend(a, b, 0.5);
 }
 
 /** WCAG relative luminance: 0 for black, 1 for white. */

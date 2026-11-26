@@ -1,5 +1,9 @@
 import { onNative, send, type AppInfo, type AppSummary } from './bridge.ts';
-import { mix, textOn } from './colors.ts';
+import { blend, mix, textOn } from './colors.ts';
+
+/** In the light theme, how far the focused button's colour is lightened towards white, so its chequer isn't
+ *  stark next to the white squares and its label stays easy to read. */
+const FOCUSED_LIGHT_TINT = 0.25;
 import { applyOrder, dragTarget, moveItem, shiftFor } from './reorder.ts';
 
 const tasksEl = document.getElementById('tasks')!;
@@ -50,12 +54,14 @@ function render() {
         if (a.color) {
             // A button without focus shows the app's colour at half strength (blended 50/50 with the theme's
             // normal button colour, as if 50% transparent), so it doesn't overpower the bar. The focused button
-            // uses the full colour in place of the darker squares of its chequer. The label is black or white,
-            // whichever reads better on what's behind it.
-            const face = a.active ? a.color : (mix(a.color, themeColor('--face')) ?? a.color);
-            const behind = a.active ? (mix(a.color, themeColor('--mesh-b')) ?? a.color) : face;
+            // uses the colour in place of the darker squares of its chequer, lightened a little in the light
+            // theme. The label is black or white, whichever reads better on what's behind it.
+            const light = !document.body.classList.contains('dark');
+            const mesh = light ? (blend(a.color, '#ffffff', FOCUSED_LIGHT_TINT) ?? a.color) : a.color;
+            const face = a.active ? mesh : (mix(a.color, themeColor('--face')) ?? a.color);
+            const behind = a.active ? (mix(mesh, themeColor('--mesh-b')) ?? mesh) : face;
             el.style.setProperty('--face', face);
-            el.style.setProperty('--mesh-a', a.color);
+            el.style.setProperty('--mesh-a', mesh);
             el.style.color = textOn(behind);
         }
         const icon = document.createElement('span');

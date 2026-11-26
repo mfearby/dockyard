@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mix, parseHex, textOn, toHex } from './colors.ts';
+import { blend, mix, parseHex, textOn, toHex } from './colors.ts';
 
 test('parseHex: reads #rrggbb in any case', () => {
     assert.deepEqual(parseHex('#ff8000'), [255, 128, 0]);
@@ -22,6 +22,15 @@ test('mix: averages two colours', () => {
     assert.equal(mix('#000000', '#ffffff'), '#808080');
     assert.equal(mix('#ff0000', '#0000ff'), '#800080');
     assert.equal(mix('#ff0000', 'nope'), null);
+});
+
+test('blend: moves part of the way towards the second colour', () => {
+    assert.equal(blend('#000000', '#ffffff', 0.25), '#404040');
+    assert.equal(blend('#ff0000', '#ffffff', 0.3), '#ff4d4d');
+    assert.equal(blend('#123456', '#ffffff', 0), '#123456');
+    assert.equal(blend('#123456', '#ffffff', 1), '#ffffff');
+    assert.equal(blend('#123456', '#ffffff', 5), '#ffffff');  // clamped
+    assert.equal(blend('nope', '#ffffff', 0.5), null);
 });
 
 test('textOn: black on light colours, white on dark ones', () => {
