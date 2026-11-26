@@ -4,11 +4,11 @@ import Foundation
 ///
 /// Colours come from the Options page and end up in the bar's styles, so only plain "#rrggbb" values are accepted.
 public enum AppColors {
-    /// The swatches offered in Options, and the defaults given to newly added apps in this order: the Windows 95
-    /// 16-colour palette without its black, white and greys.
+    /// The swatches offered in Options, and the defaults given to newly added apps in this order: a softer take on
+    /// the Windows 16-colour palette, without its black, white and greys.
     public static let palette = [
-        "#800000", "#ff0000", "#808000", "#ffff00", "#008000", "#00ff00",
-        "#008080", "#00ffff", "#000080", "#0000ff", "#800080", "#ff00ff",
+        "#031b75", "#108c00", "#17bbd3", "#720c0a", "#6c1c9e", "#b25116",
+        "#0b63c4", "#9bce00", "#73f5d5", "#e89e00", "#ff7bdb", "#fef255",
     ]
 
     /// The colour as lowercase "#rrggbb", or nil if it isn't one.
