@@ -460,8 +460,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             return windowRegistry.update(pid: app.processIdentifier, keys: list.map(\.key)).map { window in
                 let title = titles[window.key] ?? nil
                 // The tooltip repeats the full label, which the button may have cut short.
+                let label = WindowLabel.name(title: title, appName: name)
                 return AppEntry(id: ButtonID.window(id, serial: window.serial), bundleId: id,
-                                name: WindowLabel.name(title: title, appName: name),
+                                name: WindowLabel.buttonName(label, bundleId: id), title: label,
                                 icon: icon, active: window.key == focused, badge: badge, loading: loading,
                                 color: color)
             }

@@ -191,6 +191,22 @@ public enum WindowLabel {
         return trimmed.isEmpty ? appName : trimmed
     }
 
+    /// A window button's label for `bundleId`'s window labelled `label`. Finder can title its windows with the
+    /// folder's full path (e.g. "/Users/me/Downloads"), so its buttons show just the folder's name ("Downloads").
+    /// The tooltip keeps the full label.
+    public static func buttonName(_ label: String, bundleId: String) -> String {
+        guard bundleId == "com.apple.finder" else { return label }
+        return folderName(fromPath: label) ?? label
+    }
+
+    /// The last folder in a path such as "/Users/me/Downloads" or "~/Projects/", or nil if `path` isn't one.
+    public static func folderName(fromPath path: String) -> String? {
+        guard path.hasPrefix("/") || path.hasPrefix("~") else { return nil }
+        let trimmed = path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
+        let last = (trimmed as NSString).lastPathComponent
+        return last.isEmpty ? nil : last
+    }
+
     /// A window's entry in an app button's window menu: its label, shortened so a long title doesn't make the
     /// menu very wide.
     public static func menuTitle(title: String?, appName: String, maxLength: Int = 80) -> String {

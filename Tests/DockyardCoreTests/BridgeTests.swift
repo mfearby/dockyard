@@ -205,6 +205,23 @@ struct WindowLabelTests {
         #expect(WindowLabel.name(title: "dockyard \u{2013} main.swift", appName: "IntelliJ IDEA") == "dockyard \u{2013} main.swift")
     }
 
+    @Test func finderButtonsShowJustTheFolderName() {
+        #expect(WindowLabel.buttonName("/Users/marc.fearby/Downloads", bundleId: "com.apple.finder") == "Downloads")
+        #expect(WindowLabel.buttonName("~/Projects/", bundleId: "com.apple.finder") == "Projects")
+        // Titles that aren't paths, and other apps, are left alone.
+        #expect(WindowLabel.buttonName("Recents", bundleId: "com.apple.finder") == "Recents")
+        #expect(WindowLabel.buttonName("/Users/me/notes.txt", bundleId: "com.sublimetext.4") == "/Users/me/notes.txt")
+    }
+
+    @Test func folderNameFromPath() {
+        #expect(WindowLabel.folderName(fromPath: "/Users/me/Downloads") == "Downloads")
+        #expect(WindowLabel.folderName(fromPath: "/Volumes/Work Drive/") == "Work Drive")
+        #expect(WindowLabel.folderName(fromPath: "/") == "/")
+        #expect(WindowLabel.folderName(fromPath: "~") == "~")
+        #expect(WindowLabel.folderName(fromPath: "Downloads") == nil)
+        #expect(WindowLabel.folderName(fromPath: "") == nil)
+    }
+
     @Test func menuTitlesAreShortenedWhenLong() {
         #expect(WindowLabel.menuTitle(title: "dockyard", appName: "IntelliJ IDEA") == "dockyard")
         #expect(WindowLabel.menuTitle(title: nil, appName: "Notes") == "Notes")
